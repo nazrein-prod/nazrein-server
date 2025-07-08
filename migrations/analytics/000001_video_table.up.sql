@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS default.video_snapshots (
   image_src String,
   link String,
   title_hash UInt64,
-  image_hash UInt64,
+  image_etag String,
   image_file_id String,
   image_filename String,
   image_url String,
