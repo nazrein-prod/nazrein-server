@@ -32,45 +32,54 @@ func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request)
 	pageStr := r.URL.Query().Get("page")
 	if pageStr == "" {
 		vh.Logger.Println("Error: page parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Error: page parameter is missing"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
 		vh.Logger.Println("Error: limit parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Error: limit parameter is missing"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	sortByStr := r.URL.Query().Get("sortBy")
 	if sortByStr == "" {
 		vh.Logger.Println("Error: sortBy parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Error: sortBy parameter is missing"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+
+	searchTypeStr := r.URL.Query().Get("type")
+	if searchTypeStr == "" {
+		vh.Logger.Println("Error: searchType parameter is missing")
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		vh.Logger.Printf("Error: invalid page parameter '%s': %v", pageStr, err)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Invalid page parameter, must be a positive integer"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 	if page < 1 {
 		vh.Logger.Printf("Error: page parameter must be >= 1, got %d", page)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Page parameter must be >= 1"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
 		vh.Logger.Printf("Error: invalid limit parameter '%s': %v", limitStr, err)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Invalid limit parameter, must be a positive integer"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 	if limit < 1 || limit > 100 {
 		vh.Logger.Printf("Error: limit parameter must be between 1 and 100, got %d", limit)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Limit parameter must be between 1 and 100"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
@@ -79,10 +88,17 @@ func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request)
 		vh.Logger.Printf("Warning: invalid sort_by parameter '%s', defaulting to 'popular'", sortByStr)
 	}
 
+	searchType := store.ValidateSearchType(searchTypeStr)
+	if string(searchType) != searchTypeStr {
+		vh.Logger.Printf("Warning: invalid type parameter '%s', defaulting to 'video'", searchTypeStr)
+	}
+
 	params := store.GetVideosParams{
 		Page:   page,
 		Limit:  limit,
 		SortBy: sortBy,
+		Query:  query,
+		Type:   searchType,
 	}
 
 	currentUser, err := vh.Oauth.GetUser(r)
@@ -114,27 +130,27 @@ func (vh *VideoHandler) HandlerGetVideosByUserID(w http.ResponseWriter, r *http.
 	videoRequestID := chi.URLParam(r, "user_id")
 	if videoRequestID == "" {
 		vh.Logger.Println("No video request id found in url")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "No video request id found in url"})
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	currentUser, err := vh.Oauth.GetUser(r)
 	if err != nil {
 		vh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Error fetching user"})
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
 		return
 	}
 
 	if currentUser == nil {
 		vh.Logger.Println("No user found", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "No user found"})
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
 		return
 	}
 
 	videos, err := vh.VideoStore.GetVideosByUserID(currentUser.ID)
 	if err != nil {
 		vh.Logger.Println("Error getting videos from store", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Error getting videos by user id"})
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
@@ -160,7 +176,7 @@ func (vh *VideoHandler) HandlerGetVideoByID(w http.ResponseWriter, r *http.Reque
 	video, err := vh.VideoStore.GetVideoByID(videoID)
 	if err != nil {
 		vh.Logger.Println("Error getting video from store", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Error getting video by id"})
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
@@ -172,7 +188,7 @@ func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter
 	user, err := vh.Oauth.GetUser(r)
 	if err != nil {
 		vh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
 		return
 	}
 
