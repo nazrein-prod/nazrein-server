@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,16 +11,21 @@ import (
 )
 
 type SortBy string
+type SearchType string
 
 const (
-	SortByPopular SortBy = "popular"
-	SortByRecent  SortBy = "recent"
+	SortByPopular SortBy     = "popular"
+	SortByRecent  SortBy     = "recent"
+	SearchVideo   SearchType = "video"
+	SearchChannel SearchType = "channel"
 )
 
 type GetVideosParams struct {
-	Page   int    `json:"page"`
-	Limit  int    `json:"limit"`
-	SortBy SortBy `json:"sort_by"`
+	Page   int        `json:"page"`
+	Limit  int        `json:"limit"`
+	Query  string     `json:"q"`
+	SortBy SortBy     `json:"sort_by"`
+	Type   SearchType `json:"type"`
 }
 
 type VideosResponse struct {
@@ -73,31 +79,98 @@ type VideoStore interface {
 }
 
 func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse, error) {
-
 	offset := (params.Page - 1) * params.Limit
+	orderClause := "ORDER BY v.created_at DESC"
 
-	var orderBy string
 	switch params.SortBy {
 	case SortByRecent:
-		orderBy = "ORDER BY v.created_at DESC"
+		orderClause = "ORDER BY v.created_at DESC"
 	case SortByPopular:
-		orderBy = "ORDER BY v.published_at DESC"
-	default:
-		orderBy = "ORDER BY v.published_at DESC"
+		orderClause = "ORDER BY popularity_score DESC, v.created_at DESC"
 	}
 
-	query := `
-		SELECT COUNT(*) FROM videos v
-		WHERE v.is_active = true
-	`
+	whereClauses := []string{"v.is_active = true"}
+	args := []interface{}{}
+	argPos := 1
+
+	var rankClause string
+
+	if strings.TrimSpace(params.Query) != "" {
+		rawQuery := strings.TrimSpace(params.Query)
+		searchQuery := strings.ToLower(rawQuery)
+		likeQuery := "%" + searchQuery + "%"
+
+		args = append(args, searchQuery) // $1
+		args = append(args, likeQuery)   // $2
+
+		searchIdx := argPos
+		likeIdx := argPos + 1
+		argPos += 2
+
+		var typeClause string
+		switch params.Type {
+		case SearchVideo:
+			typeClause = fmt.Sprintf(`(
+				v.normalized_video_title ILIKE $%d
+				OR v.search_vector @@ plainto_tsquery('english', $%d)
+				OR similarity(v.normalized_video_title, $%d) > 0.15
+			)`, likeIdx, searchIdx, searchIdx)
+
+		case SearchChannel:
+			typeClause = fmt.Sprintf(`(
+				v.normalized_channel_title ILIKE $%d
+				OR v.search_vector @@ plainto_tsquery('english', $%d)
+				OR similarity(v.normalized_channel_title, $%d) > 0.15
+			)`, likeIdx, searchIdx, searchIdx)
+
+		default:
+			typeClause = fmt.Sprintf(`(
+				v.normalized_video_title ILIKE $%d
+				OR v.normalized_channel_title ILIKE $%d
+				OR v.search_vector @@ plainto_tsquery('english', $%d)
+				OR similarity(v.normalized_video_title, $%d) > 0.15
+				OR similarity(v.normalized_channel_title, $%d) > 0.15
+			)`, likeIdx, likeIdx, searchIdx, searchIdx, searchIdx)
+		}
+
+		whereClauses = append(whereClauses, typeClause)
+
+		rankClause = fmt.Sprintf(`
+			CASE
+				WHEN v.search_vector @@ plainto_tsquery('english', $%d)
+				THEN ts_rank(v.search_vector, plainto_tsquery('english', $%d)) * 2.0
+				WHEN v.normalized_video_title ILIKE $%d OR v.normalized_channel_title ILIKE $%d
+				THEN 1.5
+				WHEN similarity(v.normalized_video_title, $%d) > 0.2 OR similarity(v.normalized_channel_title, $%d) > 0.15
+				THEN GREATEST(similarity(v.normalized_video_title, $%d), similarity(v.normalized_channel_title, $%d))
+				ELSE 0.1
+			END AS rank
+		`, searchIdx, searchIdx, likeIdx, likeIdx, searchIdx, searchIdx, searchIdx, searchIdx)
+
+		switch params.SortBy {
+		case "":
+			orderClause = "ORDER BY rank DESC, v.created_at DESC"
+		case SortByPopular:
+			orderClause = "ORDER BY popularity_score DESC, rank DESC, v.created_at DESC"
+		}
+	} else {
+		rankClause = "0 as rank"
+	}
+
+	// Count query
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM videos v
+		WHERE %s
+	`, strings.Join(whereClauses, " AND "))
 
 	var total int
-	err := pg.db.QueryRow(query).Scan(&total)
-	if err != nil {
+	if err := pg.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to get total video count: %w", err)
 	}
 
-	query = fmt.Sprintf(`
+	// Main query
+	selectQuery := fmt.Sprintf(`
 		SELECT
 			v.id,
 			v.link,
@@ -113,20 +186,21 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 			v.visits,
 			v.created_at,
 			v.updated_at,
-			COALESCE(b.bookmark_count, 0) as bookmark_count
+			COALESCE(b.bookmark_count, 0) as bookmark_count,
+			%s,
+			(COALESCE(b.bookmark_count, 0) * 3.0 + COALESCE(v.visits, 0) * 1.0) as popularity_score
 		FROM videos v
 		LEFT JOIN (
 			SELECT video_id, COUNT(*) as bookmark_count
 			FROM bookmarks
 			GROUP BY video_id
 		) b ON v.id = b.video_id
-		WHERE v.is_active = true
+		WHERE %s
 		%s
 		LIMIT %d OFFSET %d
-	`, orderBy, params.Limit, offset)
+	`, rankClause, strings.Join(whereClauses, " AND "), orderClause, params.Limit, offset)
 
-	rows, err := pg.db.Query(query)
-
+	rows, err := pg.db.Query(selectQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get videos: %w", err)
 	}
@@ -135,8 +209,10 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 	var videos []VideoWithCounts
 	for rows.Next() {
 		var v VideoWithCounts
+		var rank float64
+		var popularityScore float64
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&v.Id,
 			&v.Link,
 			&v.Published_At,
@@ -152,14 +228,16 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 			&v.Created_At,
 			&v.Updated_At,
 			&v.BookmarkCount,
-		)
-		if err != nil {
-			return nil, err
+			&rank,
+			&popularityScore,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan video row: %w", err)
 		}
+
 		videos = append(videos, v)
 	}
 
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating over video rows: %w", err)
 	}
 
@@ -187,7 +265,6 @@ func (pg *PostgresVideoStore) GetVideosWithUserBookmarks(params GetVideosParams,
 		orderBy = "ORDER BY v.published_at DESC"
 	}
 
-	// Get total count
 	query := `
 		SELECT COUNT(*) FROM videos v
 		WHERE v.is_active = true
@@ -476,5 +553,16 @@ func ValidateSortBy(sortBy string) SortBy {
 		return SortByRecent
 	default:
 		return SortByPopular // Default to popular
+	}
+}
+
+func ValidateSearchType(searchType string) SearchType {
+	switch SearchType(searchType) {
+	case SearchVideo:
+		return SearchVideo
+	case SearchChannel:
+		return SearchChannel
+	default:
+		return SearchVideo // Default to video search
 	}
 }
