@@ -11,15 +11,21 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	r.Use(app.MiddlewareHandler.RequestLogger)
 
 	r.Route("/auth", func(r chi.Router) {
+		// Auth routes without CORS
 		r.Get("/google/login", app.Oauth.Login)
 		r.Get("/google/logout", app.Oauth.Logout)
 		r.Get("/google/callback", app.Oauth.Callback)
-		r.Get("/user", app.Oauth.AuthUser)
 
 		r.Get("/admin/google/login", app.AdminOauth.Login)
 		r.Get("/admin/google/logout", app.AdminOauth.Logout)
 		r.Get("/admin/google/callback", app.AdminOauth.Callback)
 		r.Get("/admin", app.AdminOauth.AuthAdmin)
+
+		// Auth routes with CORS
+		r.Group(func(r chi.Router) {
+			r.Use(app.MiddlewareHandler.Cors)
+			r.Get("/user", app.Oauth.AuthUser)
+		})
 	})
 
 	r.Route("/api", func(r chi.Router) {
