@@ -1,7 +1,10 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/httprate"
 	"github.com/grvbrk/track-yt-video/internal/app"
 )
 
@@ -9,8 +12,12 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(app.MiddlewareHandler.RequestLogger)
+	r.Use(httprate.LimitAll(200, time.Minute))
 
 	r.Route("/auth", func(r chi.Router) {
+
+		r.Use(httprate.LimitAll(100, time.Minute))
+
 		// Auth routes without CORS
 		r.Get("/google/login", app.Oauth.Login)
 		r.Get("/google/logout", app.Oauth.Logout)
@@ -29,6 +36,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	})
 
 	r.Route("/api", func(r chi.Router) {
+		r.Use(httprate.LimitAll(50, time.Minute))
+
 		r.Use(app.MiddlewareHandler.Cors)
 
 		// public routes
@@ -62,6 +71,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	})
 
 	r.Route("/admin", func(r chi.Router) {
+		r.Use(httprate.LimitAll(100, time.Minute))
+
 		r.Use(app.MiddlewareHandler.Cors)
 		// r.Use(app.MiddlewareHandler.AuthenticateAdmin)
 
