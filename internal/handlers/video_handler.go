@@ -185,14 +185,14 @@ func (vh *VideoHandler) HandlerGetVideoByID(w http.ResponseWriter, r *http.Reque
 
 func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter, r *http.Request) {
 
-	user, err := vh.Oauth.GetUser(r)
+	currentUser, err := vh.Oauth.GetUser(r)
 	if err != nil {
 		vh.Logger.Println("Error fetching user", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
 		return
 	}
 
-	bookmarkedVideos, err := vh.VideoStore.GetBookmarkedVideosByUserID(user.ID)
+	bookmarkedVideos, err := vh.VideoStore.GetBookmarkedVideosByUserID(currentUser.ID)
 	if err != nil {
 		vh.Logger.Println("Error getting bookmarked videos from store", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -200,5 +200,23 @@ func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": bookmarkedVideos})
+
+}
+
+func (vh *VideoHandler) HandlerGetSimilarVideosByName(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" || len(query) < 2 {
+		vh.Logger.Println("Error: query is either missing or too short")
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
+		return
+	}
+
+	videos, err := vh.VideoStore.GetSimilarVideosByName(query)
+	if err != nil {
+		vh.Logger.Println("Error getting similar videos from store", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": videos})
 
 }

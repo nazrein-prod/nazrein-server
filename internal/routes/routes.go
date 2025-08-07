@@ -34,6 +34,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		// public routes
 		r.Get("/videos", app.VideoHandler.HandlerGetVideos)
 		r.Get("/videos/{id}", app.VideoHandler.HandlerGetVideoByID)
+		r.Get("/videos/autocomplete", app.VideoHandler.HandlerGetSimilarVideosByName)
 		r.Get("/videos/analytics/{id}", app.AnalyticsVideoHandler.HandlerGetVideoAnalyticsByID)
 
 		// auth routes
