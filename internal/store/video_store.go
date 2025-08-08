@@ -432,7 +432,21 @@ func (pg *PostgresVideoStore) GetVideosWithUserBookmarks(params GetVideosParams,
 func (pg *PostgresVideoStore) GetVideosByUserID(userId uuid.UUID) ([]models.Video, error) {
 
 	query := `
-	SELECT *
+	SELECT
+		v.id,
+		v.link,
+		v.published_at,
+		v.title,
+		v.description,
+		v.thumbnail,
+		v.youtube_id,
+		v.channel_title,
+		v.channel_id,
+		v.user_id,
+		v.is_active,
+		v.visits,
+		v.created_at,
+		v.updated_at
 	FROM videos v
 	WHERE v.user_id = $1
 	`

@@ -31,7 +31,7 @@ func (c *ClickhouseVideoStore) GetVideoAnalyticsByID(videoID string) ([]VideoTim
 
 	query := `
 		SELECT snapshot_time, title, link, image_url
-		FROM default.video_snapshots
+		FROM video_snapshots
 		WHERE video_id = ?
 		ORDER BY snapshot_time DESC
 	`

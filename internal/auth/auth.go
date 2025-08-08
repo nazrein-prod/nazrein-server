@@ -61,7 +61,7 @@ func (g *GoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
 	delete(session.Values, "user_email")
 	session.Save(r, w)
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "http://localhost:3000", http.StatusSeeOther)
 }
 
 func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +131,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	session.Values["user_image"] = userInfo.Image
 	session.Values["user_name"] = userInfo.Name
 	session.Options.Path = "/"
+	session.Options.MaxAge = 0
 	// session.Options.Secure = false
 	// session.Options.SameSite = http.SameSiteLaxMode
 
@@ -153,7 +154,7 @@ func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 
 	email, ok := session.Values["user_email"].(string)
 	if !ok || email == "" {
-		g.Logger.Println("No user email found in session")
+		g.Logger.Println("No user email found in session", email, ok)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"Error": "Unauthorized"})
 		return
 	}
