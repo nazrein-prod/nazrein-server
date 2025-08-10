@@ -37,7 +37,7 @@ func NewAdminGoogleOauth(logger *log.Logger, adminStore *sessions.CookieStore, u
 		Config: &oauth2.Config{
 			ClientID:     os.Getenv("GOOGLE_CLIENT_ID_ADMIN"),
 			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET_ADMIN"),
-			RedirectURL:  "http://localhost:8080/auth/admin/google/callback",
+			RedirectURL:  "http://localhost:8080/auth/admin/google/callback", // FIX
 			Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
 			Endpoint:     google.Endpoint,
 		},

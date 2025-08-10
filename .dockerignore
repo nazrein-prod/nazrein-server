@@ -7,6 +7,7 @@ tmp/
 *.log
 *.tmp
 
+.env
 *.exe
 *.exe~
 *.dll

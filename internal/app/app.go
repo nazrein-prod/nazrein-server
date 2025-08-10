@@ -16,7 +16,7 @@ import (
 	"github.com/grvbrk/track-yt-video/internal/store/admin"
 	"github.com/grvbrk/track-yt-video/internal/store/analytics"
 	"github.com/grvbrk/track-yt-video/migrations"
-	"github.com/redis/go-redis/v9"
+	// "github.com/redis/go-redis/v9"
 )
 
 var (
@@ -27,8 +27,8 @@ var (
 )
 
 type Application struct {
-	Logger                *log.Logger
-	RedisClient           *redis.Client
+	Logger *log.Logger
+	// RedisClient           *redis.Client
 	Oauth                 *auth.GoogleOauth
 	AdminOauth            *auth.AdminGoogleOauth
 	SessionStore          *sessions.CookieStore
@@ -50,18 +50,20 @@ func NewApplication() (*Application, error) {
 	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
 	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
 
-	redisClient, err := store.ConnectRedis()
-	if err != nil {
-		return nil, err
-	}
+	// redisClient, err := store.ConnectRedis()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	pgDB, err := store.ConnectPGDB()
 	if err != nil {
+		logger.Println("Error connecting to db")
 		return nil, err
 	}
 
 	dbConn, err := store.ConnectClickhouse()
 	if err != nil {
+		logger.Println("Error connecting to clickhouse")
 		return nil, err
 	}
 
@@ -117,8 +119,8 @@ func NewApplication() (*Application, error) {
 	middlewareHandler := middlewares.NewMiddlewareHandler(logger, sessionStore)
 
 	app := &Application{
-		Logger:                logger,
-		RedisClient:           redisClient,
+		Logger: logger,
+		// RedisClient:           redisClient,
 		Oauth:                 oauth,
 		AdminOauth:            adminoauth,
 		SessionStore:          sessionStore,

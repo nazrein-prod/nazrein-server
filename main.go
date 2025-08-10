@@ -28,7 +28,7 @@ func main() {
 
 	r := routes.SetupRoutes(app)
 
-	defer app.RedisClient.Close()
+	// defer app.RedisClient.Close()
 
 	server := &http.Server{
 		Addr:         PORT,

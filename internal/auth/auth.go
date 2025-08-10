@@ -42,7 +42,7 @@ func NewGoogleOauth(logger *log.Logger, store *sessions.CookieStore, userStore *
 		Config: &oauth2.Config{
 			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-			RedirectURL:  "http://localhost:8080/auth/google/callback",
+			RedirectURL:  "http://localhost:8080/auth/google/callback", // FIX
 			Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
 			Endpoint:     google.Endpoint,
 		},
