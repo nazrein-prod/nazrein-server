@@ -71,8 +71,8 @@ jobs:
           file: Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/nazrein:server-latest
-            ${{ secrets.DOCKER_USERNAME }}/nazrein:server-${{ github.sha }}
+            ${{ vars.DOCKER_USERNAME }}/nazrein:server-latest
+            ${{ vars.DOCKER_USERNAME }}/nazrein:server-${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
