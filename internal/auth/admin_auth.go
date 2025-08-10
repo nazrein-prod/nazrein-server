@@ -54,7 +54,10 @@ func (g *AdminGoogleOauth) Login(w http.ResponseWriter, r *http.Request) {
 func (g *AdminGoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
 	session, _ := g.Store.Get(r, "session")
 	delete(session.Values, "admin_email")
-	session.Save(r, w)
+	err := session.Save(r, w)
+	if err != nil {
+		g.Logger.Println("Error saving admin session", err)
+	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

@@ -107,12 +107,13 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 		searchQuery := strings.ToLower(rawQuery)
 		likeQuery := "%" + searchQuery + "%"
 
-		args = append(args, searchQuery) // $1
-		args = append(args, likeQuery)   // $2
+		args = append(args, searchQuery)
+		searchIdx := argPos
+		argPos++
 
-		searchIdx := argPos   // 1
-		likeIdx := argPos + 1 // 2
-		argPos += 2           // 3
+		args = append(args, likeQuery)
+		likeIdx := argPos
+		argPos++
 
 		var typeClause string
 		switch params.Type {
@@ -498,7 +499,11 @@ func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts,
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	defer tx.Rollback()
+	defer func() {
+		if rErr := tx.Rollback(); rErr != nil && rErr != sql.ErrTxDone {
+			fmt.Printf("rollback error: %v", rErr)
+		}
+	}()
 
 	query := `
 		UPDATE videos

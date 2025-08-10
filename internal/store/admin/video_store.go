@@ -87,7 +87,11 @@ func (a *AdminPostgresVideoStore) CreateVideo(video *models.Video, userId uuid.U
 		return err
 	}
 
-	defer tx.Rollback()
+	defer func() {
+		if rErr := tx.Rollback(); rErr != nil && rErr != sql.ErrTxDone {
+			fmt.Printf("rollback error: %v", rErr)
+		}
+	}()
 
 	query := `
 	INSERT INTO videos (link, published_at, title, description, thumbnail, youtube_id, channel_title, channel_id, user_id, is_active, created_at, updated_at)
