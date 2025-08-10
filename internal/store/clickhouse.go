@@ -6,6 +6,9 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func ConnectClickhouse() (driver.Conn, error) {
@@ -42,4 +45,21 @@ func ConnectClickhouse() (driver.Conn, error) {
 
 	fmt.Println("Connected to Clickhouse...")
 	return conn, nil
+}
+
+func MigrateClickhouse() error {
+
+	migrationURL := "file://./migrations/analytics"
+	dbURL := "clickhouse://default:password@localhost:9000/default?x-multi-statement=true"
+
+	m, err := migrate.New(migrationURL, dbURL)
+	if err != nil {
+		return fmt.Errorf("migration init error: %v", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("migration failed: %v", err)
+	}
+
+	return nil
 }

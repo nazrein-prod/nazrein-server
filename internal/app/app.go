@@ -67,9 +67,19 @@ func NewApplication() (*Application, error) {
 
 	err = store.MigrateFS(pgDB, migrations.FS, "db")
 	if err != nil {
-		logger.Println("PANIC: Migration failed, exiting...")
+		logger.Println("PANIC: Postgresql migration failed, exiting...")
 		panic(err)
 	}
+
+	logger.Println("Database migrated...")
+
+	err = store.MigrateClickhouse()
+	if err != nil {
+		logger.Println("PANIC: Clickhouse migration failed, exiting...")
+		panic(err)
+	}
+
+	logger.Println("Clickhouse migrated...")
 
 	userStore := store.NewPostgresUserStore(pgDB)
 	dashboardStore := store.NewPostgresDashboardStore(pgDB)
