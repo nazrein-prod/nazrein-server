@@ -113,7 +113,6 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 
 		args = append(args, likeQuery)
 		likeIdx := argPos
-		argPos++
 
 		var typeClause string
 		switch params.Type {
