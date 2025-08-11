@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/grvbrk/track-yt-video/internal/store"
+	"github.com/grvbrk/nazrein_server/internal/store"
 )
 
 type UserHandler struct {

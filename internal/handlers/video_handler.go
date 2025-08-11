@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/grvbrk/track-yt-video/internal/auth"
-	"github.com/grvbrk/track-yt-video/internal/store"
-	"github.com/grvbrk/track-yt-video/internal/utils"
+	"github.com/grvbrk/nazrein_server/internal/auth"
+	"github.com/grvbrk/nazrein_server/internal/store"
+	"github.com/grvbrk/nazrein_server/internal/utils"
 )
 
 // var ctx = context.Background()

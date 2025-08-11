@@ -27,7 +27,7 @@ func ConnectClickhouse() (driver.Conn, error) {
 				Name    string
 				Version string
 			}{
-				{Name: "trackyt-clickhouse-api-server", Version: "1.0"},
+				{Name: "nazrein-clickhouse-api-server", Version: "1.0"},
 			},
 		},
 		Debugf: func(format string, v ...interface{}) {

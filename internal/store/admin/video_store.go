@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grvbrk/track-yt-video/internal/models"
+	"github.com/grvbrk/nazrein_server/internal/models"
 )
 
 type AdminVideoRequest struct {

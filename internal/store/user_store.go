@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/grvbrk/track-yt-video/internal/models"
+	"github.com/grvbrk/nazrein_server/internal/models"
 )
 
 type PostgresUserStore struct {

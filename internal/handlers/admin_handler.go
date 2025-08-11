@@ -11,10 +11,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/grvbrk/track-yt-video/internal/auth"
-	"github.com/grvbrk/track-yt-video/internal/models"
-	"github.com/grvbrk/track-yt-video/internal/store/admin"
-	"github.com/grvbrk/track-yt-video/internal/utils"
+	"github.com/grvbrk/nazrein_server/internal/auth"
+	"github.com/grvbrk/nazrein_server/internal/models"
+	"github.com/grvbrk/nazrein_server/internal/store/admin"
+	"github.com/grvbrk/nazrein_server/internal/utils"
 )
 
 type YouTubeResponse struct {

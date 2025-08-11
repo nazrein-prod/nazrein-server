@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/grvbrk/track-yt-video/internal/store/analytics"
-	"github.com/grvbrk/track-yt-video/internal/utils"
+	"github.com/grvbrk/nazrein_server/internal/store/analytics"
+	"github.com/grvbrk/nazrein_server/internal/utils"
 )
 
 type AnalyticsVideoHandler struct {

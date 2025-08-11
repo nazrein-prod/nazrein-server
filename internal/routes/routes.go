@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/httprate"
-	"github.com/grvbrk/track-yt-video/internal/app"
+	"github.com/grvbrk/nazrein_server/internal/app"
 )
 
 func SetupRoutes(app *app.Application) *chi.Mux {

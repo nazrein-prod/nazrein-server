@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
-	"github.com/grvbrk/track-yt-video/internal/utils"
+	"github.com/grvbrk/nazrein_server/internal/utils"
 )
 
 var allowedOrigins = []string{

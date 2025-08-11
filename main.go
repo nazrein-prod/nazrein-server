@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/grvbrk/track-yt-video/internal/app"
-	"github.com/grvbrk/track-yt-video/internal/routes"
+	"github.com/grvbrk/nazrein_server/internal/app"
+	"github.com/grvbrk/nazrein_server/internal/routes"
 	"github.com/joho/godotenv"
 )
 

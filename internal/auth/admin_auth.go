@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
-	"github.com/grvbrk/track-yt-video/internal/models"
-	"github.com/grvbrk/track-yt-video/internal/store"
-	"github.com/grvbrk/track-yt-video/internal/utils"
+	"github.com/grvbrk/nazrein_server/internal/models"
+	"github.com/grvbrk/nazrein_server/internal/store"
+	"github.com/grvbrk/nazrein_server/internal/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

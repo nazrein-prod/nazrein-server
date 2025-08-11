@@ -1,4 +1,4 @@
-module github.com/grvbrk/track-yt-video
+module github.com/grvbrk/nazrein_server
 
 go 1.23.3
 
