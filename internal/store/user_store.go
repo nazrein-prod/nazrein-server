@@ -18,6 +18,7 @@ func NewPostgresUserStore(db *sql.DB) *PostgresUserStore {
 type UserStore interface {
 	CreateUser(*models.User) error
 	GetUserByUsername(username string) (*models.User, error)
+	GetUserByGoogleID(id string) (*models.User, error)
 }
 
 func (pg *PostgresUserStore) CreateUser(user *models.User) error {

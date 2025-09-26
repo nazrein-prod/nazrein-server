@@ -16,7 +16,6 @@ import (
 	"github.com/grvbrk/nazrein_server/internal/store/admin"
 	"github.com/grvbrk/nazrein_server/internal/store/analytics"
 	"github.com/grvbrk/nazrein_server/migrations"
-	// "github.com/redis/go-redis/v9"
 )
 
 var (
@@ -49,11 +48,6 @@ func NewApplication() (*Application, error) {
 	adminLogger := log.New(os.Stdout, "ADMIN LOGGING: ", log.Ldate|log.Ltime)
 	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
 	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
-
-	// redisClient, err := store.ConnectRedis()
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	pgDB, err := store.ConnectPGDB()
 	if err != nil {
