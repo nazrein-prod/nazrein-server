@@ -79,41 +79,33 @@ jobs:
           provenance: false
           sbom: true
 
-  deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs:
-      - user-changed
-      - admin-changed
-      - build-user-and-push-image
-      - build-admin-and-push-image
-    if: |
-      needs.user-changed.outputs.changed == 'true' ||
-      needs.admin-changed.outputs.changed == 'true'
+  # deploy:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
 
-    steps:
-      - name: Join Tailscale network
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:ci
-          version: latest
-          use-cache: "true"
+  #   steps:
+  #     - name: Join Tailscale network
+  #       uses: tailscale/github-action@v3
+  #       with:
+  #         oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+  #         oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+  #         tags: tag:ci
+  #         version: latest
+  #         use-cache: "true"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Run Clickhouse migrations
-        run: |
-          migrate \
-            -database "clickhouse://${secrets.CLICKHOUSE_USER}:${secrets.CLICKHOUSE_PASSWORD}@${secrets.CLICKHOUSE_HOST}:${secrets.CLICKHOUSE_PORT}?database=${secrets.CLICKHOUSE_DB}&x-multi-statement=true" \
-            -path migrations/analytics/ up
+  #     - name: Run Clickhouse migrations
+  #       run: |
+  #         migrate \
+  #           -database "clickhouse://${secrets.CLICKHOUSE_USER}:${secrets.CLICKHOUSE_PASSWORD}@${secrets.CLICKHOUSE_HOST}:${secrets.CLICKHOUSE_PORT}?database=${secrets.CLICKHOUSE_DB}&x-multi-statement=true" \
+  #           -path migrations/analytics/ up
 
-      - name: Deploy or update stack
-        run: |
-          ssh -o StrictHostKeyChecking=no deploy@nazrein << 'EOF'
-            set -e
-            cd /home/deploy
-            docker stack deploy -c docker-stack.yml nazrein
-          EOF
+  #     - name: Deploy or update stack
+  #       run: |
+  #         ssh -o StrictHostKeyChecking=no deploy@nazrein << 'EOF'
+  #           set -e
+  #           cd /home/deploy
+  #           docker stack deploy -c docker-stack.yml nazrein
+  #         EOF
