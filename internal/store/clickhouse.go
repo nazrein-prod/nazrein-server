@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -13,45 +14,61 @@ import (
 )
 
 func ConnectClickhouse() (driver.Conn, error) {
+	ctx := context.Background()
+	var conn driver.Conn
+	var err error
 
-	context := context.Background()
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{os.Getenv("CLICKHOUSE_URL")},
-		Auth: clickhouse.Auth{
-			Database: os.Getenv("CLICKHOUSE_DATABASE"),
-			Username: os.Getenv("CLICKHOUSE_USERNAME"),
-			Password: os.Getenv("CLICKHOUSE_PASSWORD"),
-		},
-		ClientInfo: clickhouse.ClientInfo{
-			Products: []struct {
-				Name    string
-				Version string
-			}{
-				{Name: "nazrein-clickhouse-api-server", Version: "1.0"},
+	url := os.Getenv("CLICKHOUSE_URL")
+	dbName := os.Getenv("CLICKHOUSE_DATABASE")
+	username := os.Getenv("CLICKHOUSE_USERNAME")
+	password := os.Getenv("CLICKHOUSE_PASSWORD")
+
+	for i := 1; i <= 10; i++ {
+		conn, err = clickhouse.Open(&clickhouse.Options{
+			Addr: []string{url},
+			Auth: clickhouse.Auth{
+				Database: dbName,
+				Username: username,
+				Password: password,
 			},
-		},
-		Debugf: func(format string, v ...interface{}) {
-			fmt.Printf(format, v)
-		},
-	})
+			ClientInfo: clickhouse.ClientInfo{
+				Products: []struct {
+					Name    string
+					Version string
+				}{
+					{Name: "nazrein-clickhouse-api-server", Version: "1.0"},
+				},
+			},
+			Debugf: func(format string, v ...interface{}) {
+				fmt.Printf(format, v)
+			},
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("db: open %w", err)
+		if err == nil {
+			err = conn.Ping(ctx)
+			if err == nil {
+				fmt.Println("Connected to ClickHouse!")
+				return conn, nil
+			}
+		}
+
+		fmt.Printf("Attempt %d: ClickHouse not ready: %v\n", i, err)
+		time.Sleep(3 * time.Second)
 	}
 
-	err = conn.Ping(context)
-	if err != nil {
-		return nil, fmt.Errorf("db: open %w", err)
-	}
-
-	fmt.Println("Connected to Clickhouse...")
-	return conn, nil
+	return nil, fmt.Errorf("could not connect to ClickHouse after multiple attempts: %w", err)
 }
 
 func MigrateClickhouse() error {
-
 	migrationURL := "file://./migrations/analytics"
-	dbURL := "clickhouse://default:password@localhost:9000/default?x-multi-statement=true"
+
+	username := os.Getenv("CLICKHOUSE_USERNAME")
+	password := os.Getenv("CLICKHOUSE_PASSWORD")
+	url := os.Getenv("CLICKHOUSE_URL")
+	dbName := os.Getenv("CLICKHOUSE_DATABASE")
+
+	dbURL := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true",
+		username, password, url, dbName)
 
 	m, err := migrate.New(migrationURL, dbURL)
 	if err != nil {

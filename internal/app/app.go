@@ -15,7 +15,7 @@ import (
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/store/admin"
 	"github.com/grvbrk/nazrein_server/internal/store/analytics"
-	"github.com/grvbrk/nazrein_server/migrations"
+	// "github.com/grvbrk/nazrein_server/migrations"
 )
 
 var (
@@ -61,21 +61,21 @@ func NewApplication() (*Application, error) {
 		return nil, err
 	}
 
-	err = store.MigrateFS(pgDB, migrations.FS, "db")
-	if err != nil {
-		logger.Println("PANIC: Postgresql migration failed, exiting...")
-		panic(err)
-	}
+	// err = store.MigrateFS(pgDB, migrations.FS, "db")
+	// if err != nil {
+	// 	logger.Println("PANIC: Postgresql migration failed, exiting...")
+	// 	panic(err)
+	// }
 
-	logger.Println("Database migrated...")
+	// logger.Println("Database migrated...")
 
-	err = store.MigrateClickhouse()
-	if err != nil {
-		logger.Println("PANIC: Clickhouse migration failed, exiting...")
-		panic(err)
-	}
+	// err = store.MigrateClickhouse()
+	// if err != nil {
+	// 	logger.Println("PANIC: Clickhouse migration failed, exiting...")
+	// 	panic(err)
+	// }
 
-	logger.Println("Clickhouse migrated...")
+	// logger.Println("Clickhouse migrated...")
 
 	userStore := store.NewPostgresUserStore(pgDB)
 	dashboardStore := store.NewPostgresDashboardStore(pgDB)

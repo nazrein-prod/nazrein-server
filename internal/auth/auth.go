@@ -14,7 +14,8 @@ import (
 	"github.com/grvbrk/nazrein_server/internal/models"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/utils"
-	"github.com/joho/godotenv"
+
+	// "github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -33,10 +34,10 @@ type GoogleOauth struct {
 }
 
 func NewGoogleOauth(logger *log.Logger, store *sessions.CookieStore, userStore *store.PostgresUserStore) (*GoogleOauth, error) {
-	err := godotenv.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load env variables: %w", err)
-	}
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to load env variables: %w", err)
+	// }
 	return &GoogleOauth{
 		Logger: logger,
 		Config: &oauth2.Config{
