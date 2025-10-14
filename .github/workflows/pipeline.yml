@@ -48,36 +48,36 @@ jobs:
         run: |
           go test ./...
 
-  push-to-dockerhub:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  # push-to-dockerhub:
+  #   runs-on: ubuntu-latest
+  #   needs: lint
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+  #     - name: Log in to Docker Hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ vars.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image to dockerhub
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ vars.DOCKER_USERNAME }}/nazrein:server-latest
-            ${{ vars.DOCKER_USERNAME }}/nazrein:server-${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: false
-          sbom: true
+  #     - name: Build and push Docker image to dockerhub
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         file: Dockerfile
+  #         push: ${{ github.event_name != 'pull_request' }}
+  #         tags: |
+  #           ${{ vars.DOCKER_USERNAME }}/nazrein:server-latest
+  #           ${{ vars.DOCKER_USERNAME }}/nazrein:server-${{ github.sha }}
+  #         platforms: linux/amd64,linux/arm64
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
+  #         provenance: false
+  #         sbom: true
 
   # deploy:
   #   runs-on: ubuntu-latest
