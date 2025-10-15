@@ -12,6 +12,7 @@ import (
 	"github.com/grvbrk/nazrein_server/internal/handlers"
 	handler_analytics "github.com/grvbrk/nazrein_server/internal/handlers/analytics"
 	"github.com/grvbrk/nazrein_server/internal/middlewares"
+	"github.com/grvbrk/nazrein_server/internal/services"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/store/admin"
 	"github.com/grvbrk/nazrein_server/internal/store/analytics"
@@ -33,7 +34,7 @@ type Application struct {
 	SessionStore          *sessions.CookieStore
 	db                    *sql.DB
 	DBConn                driver.Conn
-	MiddlewareHandler     *middlewares.MiddlwareHandler
+	MiddlewareHandler     *middlewares.MiddlewareHandler
 	UserHandler           *handlers.UserHandler
 	DashboardHandler      *handlers.DashboardHandler
 	VideoHandler          *handlers.VideoHandler
@@ -49,13 +50,13 @@ func NewApplication() (*Application, error) {
 	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
 	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
 
-	pgDB, err := store.ConnectPGDB()
+	pgDB, err := services.ConnectPGDB()
 	if err != nil {
 		logger.Println("Error connecting to db")
 		return nil, err
 	}
 
-	dbConn, err := store.ConnectClickhouse()
+	dbConn, err := services.ConnectClickhouse()
 	if err != nil {
 		logger.Println("Error connecting to clickhouse")
 		return nil, err
@@ -69,13 +70,11 @@ func NewApplication() (*Application, error) {
 
 	// logger.Println("Database migrated...")
 
-	// err = store.MigrateClickhouse()
-	// if err != nil {
-	// 	logger.Println("PANIC: Clickhouse migration failed, exiting...")
-	// 	panic(err)
-	// }
-
-	// logger.Println("Clickhouse migrated...")
+	err = services.MigrateClickhouse()
+	if err != nil {
+		logger.Println("PANIC: Clickhouse migration failed, exiting...")
+		panic(err)
+	}
 
 	userStore := store.NewPostgresUserStore(pgDB)
 	dashboardStore := store.NewPostgresDashboardStore(pgDB)
@@ -110,7 +109,7 @@ func NewApplication() (*Application, error) {
 
 	adminHander := handlers.NewAdminHandler(adminVideoStore, adminUserStore, adminVideoRequestStore, adminLogger, adminoauth)
 
-	middlewareHandler := middlewares.NewMiddlewareHandler(logger, sessionStore)
+	middlewareHandler := middlewares.NewMiddlewareHandler(logger, adminLogger, sessionStore, adminSessionStore)
 
 	app := &Application{
 		Logger: logger,

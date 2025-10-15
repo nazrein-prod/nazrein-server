@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
+	"github.com/grvbrk/nazrein_server/internal/middlewares"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/utils"
 )
@@ -101,8 +102,8 @@ func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request)
 		Type:   searchType,
 	}
 
-	currentUser, err := vh.Oauth.GetUser(r)
-	if err != nil || currentUser == nil {
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
 		// No authenticated user - return videos without bookmark information
 		response, err := vh.VideoStore.GetVideos(params)
 		if err != nil {
@@ -116,7 +117,7 @@ func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Authenticated user - return videos with bookmark information
-	response, err := vh.VideoStore.GetVideosWithUserBookmarks(params, currentUser.ID)
+	response, err := vh.VideoStore.GetVideosWithUserBookmarks(params, user.ID)
 	if err != nil {
 		vh.Logger.Printf("Error getting videos with bookmarks from store: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -127,27 +128,15 @@ func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request)
 }
 
 func (vh *VideoHandler) HandlerGetVideosByUserID(w http.ResponseWriter, r *http.Request) {
-	videoRequestID := chi.URLParam(r, "user_id")
-	if videoRequestID == "" {
-		vh.Logger.Println("No video request id found in url")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
+
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		vh.Logger.Println("No user found in context.")
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
 
-	currentUser, err := vh.Oauth.GetUser(r)
-	if err != nil {
-		vh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
-		return
-	}
-
-	if currentUser == nil {
-		vh.Logger.Println("No user found", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
-		return
-	}
-
-	videos, err := vh.VideoStore.GetVideosByUserID(currentUser.ID)
+	videos, err := vh.VideoStore.GetVideosByUserID(user.ID)
 	if err != nil {
 		vh.Logger.Println("Error getting videos from store", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -185,14 +174,14 @@ func (vh *VideoHandler) HandlerGetVideoByID(w http.ResponseWriter, r *http.Reque
 
 func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter, r *http.Request) {
 
-	currentUser, err := vh.Oauth.GetUser(r)
-	if err != nil {
-		vh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Unauthorized"})
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		vh.Logger.Println("No user found in context.")
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
 
-	bookmarkedVideos, err := vh.VideoStore.GetBookmarkedVideosByUserID(currentUser.ID)
+	bookmarkedVideos, err := vh.VideoStore.GetBookmarkedVideosByUserID(user.ID)
 	if err != nil {
 		vh.Logger.Println("Error getting bookmarked videos from store", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -200,7 +189,6 @@ func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": bookmarkedVideos})
-
 }
 
 func (vh *VideoHandler) HandlerGetSimilarVideosByName(w http.ResponseWriter, r *http.Request) {

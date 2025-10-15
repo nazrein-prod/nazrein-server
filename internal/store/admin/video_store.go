@@ -33,7 +33,7 @@ type AdminVideoStore interface {
 
 func (a *AdminPostgresVideoStore) GetAllVideoRequest() ([]AdminVideoRequest, error) {
 
-	var results []AdminVideoRequest
+	results := []AdminVideoRequest{}
 
 	query := `
 		SELECT vr.id, vr.status, vr.link, vr.youtube_id, vr.created_at, u.id, u.name, u.image, u.videos_tracked

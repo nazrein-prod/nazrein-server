@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
+	"github.com/grvbrk/nazrein_server/internal/middlewares"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/utils"
 )
@@ -31,15 +32,9 @@ func NewBookmarkHandler(videoStore store.VideoStore, bookmarkStore store.Bookmar
 
 func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.Request) {
 
-	currentUser, err := bh.Oauth.GetUser(r)
-	if err != nil {
-		bh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
-
-	if currentUser == nil {
-		bh.Logger.Println("No user found", err)
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		bh.Logger.Println("No user found in context.")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
@@ -51,7 +46,7 @@ func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err = bh.BookmarkStore.CreateBookmark(videoID, currentUser.ID)
+	err = bh.BookmarkStore.CreateBookmark(videoID, user.ID)
 	if err != nil {
 		bh.Logger.Println("Error creating bookmark", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -62,15 +57,10 @@ func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.
 }
 
 func (bh *BookmarkHandler) HandlerDeleteBookmark(w http.ResponseWriter, r *http.Request) {
-	currentUser, err := bh.Oauth.GetUser(r)
-	if err != nil {
-		bh.Logger.Println("Error fetching user", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
 
-	if currentUser == nil {
-		bh.Logger.Println("No user found", err)
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		bh.Logger.Println("No user found in context.")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
@@ -82,7 +72,7 @@ func (bh *BookmarkHandler) HandlerDeleteBookmark(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err = bh.BookmarkStore.DeleteBookmark(videoID, currentUser.ID)
+	err = bh.BookmarkStore.DeleteBookmark(videoID, user.ID)
 	if err != nil {
 		bh.Logger.Println("Error deleting bookmark", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})

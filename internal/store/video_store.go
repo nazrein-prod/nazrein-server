@@ -213,7 +213,7 @@ func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse
 	}
 	defer rows.Close()
 
-	var videos []VideoWithCounts
+	videos := []VideoWithCounts{}
 	for rows.Next() {
 		var v VideoWithCounts
 		var rank float64
@@ -399,7 +399,7 @@ func (pg *PostgresVideoStore) GetVideosWithUserBookmarks(params GetVideosParams,
 	}
 	defer rows.Close()
 
-	var videos []BookmarkedVideoWithCounts
+	videos := []BookmarkedVideoWithCounts{}
 	for rows.Next() {
 		var v BookmarkedVideoWithCounts
 		var rank, popularityScore float64
@@ -458,7 +458,7 @@ func (pg *PostgresVideoStore) GetVideosByUserID(userId uuid.UUID) ([]models.Vide
 
 	defer rows.Close()
 
-	var videos []models.Video
+	videos := []models.Video{}
 	for rows.Next() {
 		var video models.Video
 
@@ -543,7 +543,7 @@ func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts,
 
 	row := tx.QueryRow(query, videoID)
 
-	var video VideoWithCounts
+	video := VideoWithCounts{}
 	err = row.Scan(
 		&video.Id,
 		&video.Link,
@@ -600,9 +600,10 @@ func (pg *PostgresVideoStore) GetBookmarkedVideosByUserID(userID uuid.UUID) ([]B
 	if err != nil {
 		return nil, fmt.Errorf("failed to get bookmarked videos: %w", err)
 	}
+
 	defer rows.Close()
 
-	var bookmarkedVideos []BookmarkedVideo
+	bookmarkedVideos := []BookmarkedVideo{}
 
 	for rows.Next() {
 		var bookmarkedVideo BookmarkedVideo
@@ -684,7 +685,7 @@ func (pg *PostgresVideoStore) GetSimilarVideosByName(name string) ([]SimilarVide
 	}
 	defer rows.Close()
 
-	var videos []SimilarVideo
+	videos := []SimilarVideo{}
 	for rows.Next() {
 		var video SimilarVideo
 

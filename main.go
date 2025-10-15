@@ -1,16 +1,12 @@
 package main
 
 import (
-	// "fmt"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/grvbrk/nazrein_server/internal/app"
 	"github.com/grvbrk/nazrein_server/internal/routes"
-	// "github.com/joho/godotenv"
 )
 
 const (
@@ -18,16 +14,6 @@ const (
 )
 
 func main() {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	fmt.Println("PANIC: Error loading env")
-	// 	panic(err)
-	// }
-
-	fmt.Println(os.Getenv("DB_URL"))
-	fmt.Println(os.Getenv("CLICKHOUSE_DATABASE"))
-	fmt.Println(os.Getenv("CLICKHOUSE_URL"))
-	fmt.Println(os.Getenv("CLICKHOUSE_USERNAME"))
 
 	app, err := app.NewApplication()
 	if err != nil {

@@ -35,4 +35,5 @@ go.work
 /configs
 ./database/
 .env
+test-stack.yml
 

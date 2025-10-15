@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
+	"github.com/grvbrk/nazrein_server/internal/middlewares"
 	"github.com/grvbrk/nazrein_server/internal/models"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/utils"
@@ -36,22 +37,16 @@ func (vrh *VideoRequestHandler) HandlerCreateVideoRequest(w http.ResponseWriter,
 		return
 	}
 
-	currentUser, err := vrh.Oauth.GetUser(r)
-	if err != nil {
-		vrh.Logger.Println("Error fetching user in oauth getuser", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
-
-	if currentUser == nil {
-		vrh.Logger.Println("No user found in oauth getuser")
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		vrh.Logger.Println("No user found in context.")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
 
 	var totalRequests int
-	if currentUser.Role == "USER" {
-		totalRequests, err = vrh.VideoRequestStore.GetTotalPendingRequestsByUserID(currentUser.ID)
+	if user.Role == "USER" {
+		totalRequests, err = vrh.VideoRequestStore.GetTotalPendingRequestsByUserID(user.ID)
 		if err != nil {
 			vrh.Logger.Println("Error getting total requests by user id", err)
 			utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -65,7 +60,7 @@ func (vrh *VideoRequestHandler) HandlerCreateVideoRequest(w http.ResponseWriter,
 		}
 	}
 
-	err = vrh.VideoRequestStore.CreateVideoRequest(&req, currentUser.ID)
+	err = vrh.VideoRequestStore.CreateVideoRequest(&req, user.ID)
 	if err != nil {
 		vrh.Logger.Println("Error creating video request in store", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -83,15 +78,9 @@ func (vrh *VideoRequestHandler) HandlerDeleteVideoRequestByID(w http.ResponseWri
 		return
 	}
 
-	currentUser, err := vrh.Oauth.GetUser(r)
-	if err != nil {
-		vrh.Logger.Println("Error fetching user in oauth getuser", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
-
-	if currentUser == nil {
-		vrh.Logger.Println("No user found in oauth getuser")
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		vrh.Logger.Println("No user found in context.")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
@@ -110,7 +99,7 @@ func (vrh *VideoRequestHandler) HandlerDeleteVideoRequestByID(w http.ResponseWri
 		return
 	}
 
-	if currentUser.ID != userID {
+	if user.ID != userID {
 		vrh.Logger.Println("user id does not match")
 		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "Forbidden"})
 		return
@@ -129,20 +118,14 @@ func (vrh *VideoRequestHandler) HandlerDeleteVideoRequestByID(w http.ResponseWri
 
 func (vrh *VideoRequestHandler) HandlerGetAllVideoRequestsByUserID(w http.ResponseWriter, r *http.Request) {
 
-	currentUser, err := vrh.Oauth.GetUser(r)
-	if err != nil {
-		vrh.Logger.Println("Error fetching user in oauth getuser", err)
+	user, ok := middlewares.GetUserFromContext(r)
+	if !ok {
+		vrh.Logger.Println("No user found in context.")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
 
-	if currentUser == nil {
-		vrh.Logger.Println("No user found in oauth getuser")
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
-
-	videoRequestArr, err := vrh.VideoRequestStore.GetAllVideoRequestByUserID(currentUser.ID)
+	videoRequestArr, err := vrh.VideoRequestStore.GetAllVideoRequestByUserID(user.ID)
 	if err != nil {
 		vrh.Logger.Println("Error getting video requests by user id", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})

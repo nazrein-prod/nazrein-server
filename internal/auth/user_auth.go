@@ -15,7 +15,6 @@ import (
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/utils"
 
-	// "github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -34,16 +33,13 @@ type GoogleOauth struct {
 }
 
 func NewGoogleOauth(logger *log.Logger, store *sessions.CookieStore, userStore *store.PostgresUserStore) (*GoogleOauth, error) {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to load env variables: %w", err)
-	// }
+
 	return &GoogleOauth{
 		Logger: logger,
 		Config: &oauth2.Config{
-			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-			RedirectURL:  "http://localhost:8080/auth/google/callback", // FIX
+			ClientID:     os.Getenv("GOOGLE_CLIENT_ID_USER"),
+			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET_USER"),
+			RedirectURL:  fmt.Sprintf("%s/auth/google/callback", os.Getenv("NEXT_PUBLIC_BACKEND_URL")),
 			Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
 			Endpoint:     google.Endpoint,
 		},
@@ -58,14 +54,21 @@ func (g *GoogleOauth) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
-	session, _ := g.Store.Get(r, "session")
-	delete(session.Values, "user_email")
-	err := session.Save(r, w)
-	if err != nil {
-		g.Logger.Println("Error saving admin session", err)
+	session, _ := g.Store.Get(r, "nazrein_session")
+
+	for key := range session.Values {
+		delete(session.Values, key)
 	}
 
-	http.Redirect(w, r, "http://localhost:3000", http.StatusSeeOther)
+	session.Options.MaxAge = -1
+
+	err := session.Save(r, w)
+	if err != nil {
+		g.Logger.Println("Error clearing session", err)
+	}
+
+	redirectURL := os.Getenv("FRONTEND_URL")
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
@@ -123,81 +126,67 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 		userID = user.ID.String()
 	}
 
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		g.Logger.Println("Error getting user by google id", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
 
-	session, _ := g.Store.Get(r, "session")
+	session, _ := g.Store.Get(r, "nazrein_session")
 	session.Values["user_id"] = userID
 	session.Values["user_email"] = userInfo.Email
 	session.Values["user_image"] = userInfo.Image
 	session.Values["user_name"] = userInfo.Name
-	session.Options.Path = "/"
-	session.Options.MaxAge = 0
+	// session.Options.Path = "/"
+	// session.Options.MaxAge = 0
 	// session.Options.Secure = false
 	// session.Options.SameSite = http.SameSiteLaxMode
 
 	err = session.Save(r, w)
 	if err != nil {
 		g.Logger.Println("Error saving session", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
+		return
 	}
 
-	http.Redirect(w, r, "http://localhost:3000/dashboard", http.StatusSeeOther)
+	redirectURL := os.Getenv("FRONTEND_URL") + "/dashboard"
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
-
-	session, err := g.Store.Get(r, "session")
+	user, err := g.Store.Get(r, "nazrein_session")
 	if err != nil {
-		g.Logger.Println("Failed to decode session:", err)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"Error": "Unauthorized"})
+		g.Logger.Println("Error getting session", err)
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
 	}
 
-	email, ok := session.Values["user_email"].(string)
-	if !ok || email == "" {
-		g.Logger.Println("No user email found in session", email, ok)
-		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"Error": "Unauthorized"})
+	userEmail, emailOk := user.Values["user_email"].(string)
+	userIDStr, idOk := user.Values["user_id"].(string)
+	userName, nameOk := user.Values["user_name"].(string)
+	userImage, imageOk := user.Values["user_image"].(string)
+
+	if !emailOk || !idOk || !nameOk || !imageOk || userEmail == "" || userIDStr == "" || userName == "" || userImage == "" {
+		g.Logger.Println("Invalid or missing user data in session")
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
 	}
 
-	userId, _ := session.Values["user_id"].(string)
-	userImage, _ := session.Values["user_image"].(string)
-	userName, _ := session.Values["user_name"].(string)
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
-		"user_id":    userId,
-		"user_email": email,
-		"user_image": userImage,
-		"user_name":  userName,
-	})
-}
-
-func (g *GoogleOauth) GetUser(r *http.Request) (*models.User, error) {
-	session, err := g.Store.Get(r, "session")
-
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		g.Logger.Println("Invalid user ID format in session:", err)
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
+		return
 	}
 
-	userEmail, ok := session.Values["user_email"].(string)
-	if !ok || userEmail == "" {
-		return nil, fmt.Errorf("no user email found in session")
+	userInfo := map[string]interface{}{
+		"id":    userID,
+		"email": userEmail,
+		"name":  userName,
+		"image": userImage,
+		"role":  "USER",
 	}
 
-	id, ok := session.Values["user_id"].(string)
-	if !ok || id == "" {
-		return nil, fmt.Errorf("no user id found in session")
-	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": userInfo})
 
-	userID, err := uuid.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse user id: %w", err)
-	}
-
-	return &models.User{
-		ID:    userID,
-		Email: userEmail,
-	}, nil
 }

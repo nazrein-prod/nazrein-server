@@ -1,47 +1,62 @@
 services:
   redis:
-    container_name: "test-redis"
-    image: redis
+    container_name: "nazrein-dev-redis"
+    image: redis:7.2.4
     volumes:
-      - "./database/redis:/var/lib/redis/data:rw"
+      - redis_nazrein_data:/var/lib/redis/data
     ports:
       - "6379:6379"
     restart: unless-stopped
 
-  db:
-    container_name: "test-db"
-    image: postgres:12.4-alpine
-    volumes:
-      - "./database/postgres:/var/lib/postgresql/data:rw"
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: "postgres"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-    restart: unless-stopped
+  # db:
+  #   container_name: "nazrein-dev-db"
+  #   image: postgres:16.2
+  #   volumes:
+  #     - pg_nazrein_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_DB: "postgres"
+  #     POSTGRES_USER: "postgres"
+  #     POSTGRES_PASSWORD: "postgres"
+  #   restart: unless-stopped
 
   clickhouse:
-    container_name: "clickhouse"
+    container_name: "nazrein-dev-clickhouse"
     image: clickhouse/clickhouse-server:latest
     ports:
       - "8123:8123"
       - "9000:9000"
     volumes:
-      - ./database/clickhouse/data:/var/lib/clickhouse
-      - ./database/clickhouse/logs:/var/log/clickhouse-server
+      - clickhouse_nazrein_data:/var/lib/clickhouse
+      # - ./database/clickhouse/data:/var/lib/clickhouse
+      # - ./database/clickhouse/logs:/var/log/clickhouse-server
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
     environment:
       CLICKHOUSE_DB: default
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: password123
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-    restart: unless-stopped
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test:
+        [
+          "CMD",
+          "clickhouse-client",
+          "-u",
+          "clickhouse",
+          "--password",
+          "clickhouse",
+          "--query",
+          "SELECT 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis_nazrein_data:
+  pg_nazrein_data:
+  clickhouse_nazrein_data:

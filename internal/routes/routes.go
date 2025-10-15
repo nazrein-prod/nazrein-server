@@ -11,8 +11,9 @@ import (
 func SetupRoutes(app *app.Application) *chi.Mux {
 	r := chi.NewRouter()
 
-	r.Use(app.MiddlewareHandler.RequestLogger)
 	r.Use(httprate.LimitAll(200, time.Minute))
+	r.Use(app.MiddlewareHandler.RequestLogger)
+	r.Use(app.MiddlewareHandler.Security)
 
 	r.Route("/auth", func(r chi.Router) {
 
@@ -26,35 +27,36 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		r.Get("/admin/google/login", app.AdminOauth.Login)
 		r.Get("/admin/google/logout", app.AdminOauth.Logout)
 		r.Get("/admin/google/callback", app.AdminOauth.Callback)
-		r.Get("/admin", app.AdminOauth.AuthAdmin)
 
 		// Auth routes with CORS
 		r.Group(func(r chi.Router) {
 			r.Use(app.MiddlewareHandler.Cors)
 			r.Get("/user", app.Oauth.AuthUser)
+			r.Get("/admin", app.AdminOauth.AuthAdmin)
 		})
 	})
 
-	r.Route("/api", func(r chi.Router) {
-		r.Use(httprate.LimitAll(50, time.Minute))
-
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(httprate.LimitAll(100, time.Minute))
 		r.Use(app.MiddlewareHandler.Cors)
 
 		// public routes
-		r.Get("/videos", app.VideoHandler.HandlerGetVideos)
-		r.Get("/videos/{id}", app.VideoHandler.HandlerGetVideoByID)
-		r.Get("/videos/autocomplete", app.VideoHandler.HandlerGetSimilarVideosByName)
-		r.Get("/videos/analytics/{id}", app.AnalyticsVideoHandler.HandlerGetVideoAnalyticsByID)
+		r.Route("/public", func(r chi.Router) {
+			r.Get("/videos", app.VideoHandler.HandlerGetVideos)
+			r.Get("/videos/{id}", app.VideoHandler.HandlerGetVideoByID)
+			r.Get("/videos/autocomplete", app.VideoHandler.HandlerGetSimilarVideosByName)
+			r.Get("/videos/analytics/{id}", app.AnalyticsVideoHandler.HandlerGetVideoAnalyticsByID)
+		})
 
 		// auth routes
 		r.Group(func(r chi.Router) {
 			r.Use(app.MiddlewareHandler.Authenticate)
 
 			r.Route("/dashboard", func(r chi.Router) {
-				r.Get("/metrics/{user_id}", app.DashboardHandler.HandlerGetDashboardMetrics)
+				r.Get("/metrics", app.DashboardHandler.HandlerGetDashboardMetrics)
 			})
 
-			r.Get("/videos/user/{user_id}", app.VideoHandler.HandlerGetVideosByUserID)
+			r.Get("/videos", app.VideoHandler.HandlerGetVideosByUserID)
 			r.Get("/videos/bookmarks", app.VideoHandler.HandlerGetBookmarkedVideosByUserID)
 
 			r.Route("/request", func(r chi.Router) {
@@ -72,9 +74,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 	r.Route("/admin", func(r chi.Router) {
 		r.Use(httprate.LimitAll(100, time.Minute))
-
 		r.Use(app.MiddlewareHandler.Cors)
-		// r.Use(app.MiddlewareHandler.AuthenticateAdmin)
+		r.Use(app.MiddlewareHandler.AuthenticateAdmin)
 
 		r.Route("/request", func(r chi.Router) {
 			r.Get("/", app.AdminHandler.HandlerGetVideoRequests)

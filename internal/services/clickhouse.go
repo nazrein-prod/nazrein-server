@@ -1,4 +1,4 @@
-package store
+package services
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func ConnectClickhouse() (driver.Conn, error) {
 		}
 
 		fmt.Printf("Attempt %d: ClickHouse not ready: %v\n", i, err)
-		time.Sleep(3 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 
 	return nil, fmt.Errorf("could not connect to ClickHouse after multiple attempts: %w", err)
@@ -67,8 +67,7 @@ func MigrateClickhouse() error {
 	url := os.Getenv("CLICKHOUSE_URL")
 	dbName := os.Getenv("CLICKHOUSE_DATABASE")
 
-	dbURL := fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true",
-		username, password, url, dbName)
+	dbURL := fmt.Sprintf("clickhouse://%s?username=%s&password=%s&database=%s&x-multi-statement=true", url, username, password, dbName)
 
 	m, err := migrate.New(migrationURL, dbURL)
 	if err != nil {
@@ -79,5 +78,6 @@ func MigrateClickhouse() error {
 		return fmt.Errorf("migration failed: %v", err)
 	}
 
+	fmt.Println("Clickhouse migrated...")
 	return nil
 }
