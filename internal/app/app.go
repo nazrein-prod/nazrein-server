@@ -3,6 +3,7 @@ package app
 import (
 	"database/sql"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -47,8 +48,26 @@ type Application struct {
 func NewApplication() (*Application, error) {
 	logger := log.New(os.Stdout, "LOGGING: ", log.Ldate|log.Ltime)
 	adminLogger := log.New(os.Stdout, "ADMIN LOGGING: ", log.Ldate|log.Ltime)
+
 	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
+	sessionStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7, // 7 days
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+		Domain:   ".nazrein.dev",
+	}
+
 	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
+	adminSessionStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7, // 7 days
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+		Domain:   ".nazrein.dev",
+	}
 
 	pgDB, err := services.ConnectPGDB()
 	if err != nil {
