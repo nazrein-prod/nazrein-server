@@ -82,6 +82,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs:
+      - push-to-dockerhub
 
     steps:
       - name: Join Tailscale network
