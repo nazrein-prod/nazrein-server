@@ -137,10 +137,6 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	session.Values["user_email"] = userInfo.Email
 	session.Values["user_image"] = userInfo.Image
 	session.Values["user_name"] = userInfo.Name
-	// session.Options.Path = "/"
-	// session.Options.MaxAge = 0
-	// session.Options.Secure = false
-	// session.Options.SameSite = http.SameSiteLaxMode
 
 	err = session.Save(r, w)
 	if err != nil {

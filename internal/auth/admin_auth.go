@@ -50,24 +50,6 @@ func (g *AdminGoogleOauth) Login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func (g *AdminGoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
-	session, _ := g.Store.Get(r, "nazrein_admin_session")
-
-	for key := range session.Values {
-		delete(session.Values, key)
-	}
-
-	session.Options.MaxAge = -1
-	err := session.Save(r, w)
-	if err != nil {
-		g.Logger.Println("Error clearing session", err)
-	}
-
-	redirectURL := os.Getenv("ADMIN_FRONTEND_URL")
-	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-
-}
-
 func (g *AdminGoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	token, err := g.Config.Exchange(context.Background(), code)
@@ -80,7 +62,7 @@ func (g *AdminGoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	client := g.Config.Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
-		g.Logger.Println("Error getting user info", err)
+		g.Logger.Println("Error getting admin info", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
@@ -122,9 +104,6 @@ func (g *AdminGoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	session.Values["admin_id"] = userId
 	session.Values["admin_name"] = userInfo.Name
 	session.Values["admin_image"] = userInfo.Image
-	// session.Options.Path = "/"
-	// session.Options.Secure = false
-	// session.Options.SameSite = http.SameSiteNoneMode
 
 	err = session.Save(r, w)
 	if err != nil {
@@ -135,6 +114,25 @@ func (g *AdminGoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 
 	redirectURL := os.Getenv("ADMIN_FRONTEND_URL") + "/dashboard"
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func (g *AdminGoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
+	session, _ := g.Store.Get(r, "nazrein_admin_session")
+
+	for key := range session.Values {
+		delete(session.Values, key)
+	}
+
+	session.Options.MaxAge = -1
+
+	err := session.Save(r, w)
+	if err != nil {
+		g.Logger.Println("Error saving admin session", err)
+	}
+
+	redirectURL := os.Getenv("ADMIN_FRONTEND_URL")
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+
 }
 
 func (g *AdminGoogleOauth) AuthAdmin(w http.ResponseWriter, r *http.Request) {

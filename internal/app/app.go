@@ -92,7 +92,7 @@ func NewApplication() (*Application, error) {
 	err = services.MigrateClickhouse()
 	if err != nil {
 		logger.Println("PANIC: Clickhouse migration failed, exiting...")
-		panic(err)
+		return nil, err
 	}
 
 	userStore := store.NewPostgresUserStore(pgDB)
