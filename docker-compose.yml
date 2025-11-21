@@ -29,8 +29,8 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_nazrein_data:/var/lib/clickhouse
-      # - ./database/clickhouse/data:/var/lib/clickhouse
-      # - ./database/clickhouse/logs:/var/log/clickhouse-server
+      - ./config/query_log_ttl.xml:/etc/clickhouse-server/config.d/query_log_ttl.xml
+      - ./config/z_log_disable.xml:/etc/clickhouse-server/config.d/z_log_disable.xml
     ulimits:
       nofile:
         soft: 262144
