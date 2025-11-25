@@ -103,6 +103,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userID string
+	var userRole string
 	user, err := g.UserStore.GetUserByGoogleID(userInfo.GoogleID)
 
 	if user == nil || err == sql.ErrNoRows {
@@ -122,8 +123,10 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		userID = newUser.ID.String()
+		userRole = "USER"
 	} else {
 		userID = user.ID.String()
+		userRole = user.Role
 	}
 
 	if err != nil && err != sql.ErrNoRows {
@@ -137,6 +140,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	session.Values["user_email"] = userInfo.Email
 	session.Values["user_image"] = userInfo.Image
 	session.Values["user_name"] = userInfo.Name
+	session.Values["user_role"] = userRole
 
 	err = session.Save(r, w)
 	if err != nil {
@@ -161,8 +165,9 @@ func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 	userIDStr, idOk := user.Values["user_id"].(string)
 	userName, nameOk := user.Values["user_name"].(string)
 	userImage, imageOk := user.Values["user_image"].(string)
+	userRole, roleOk := user.Values["user_role"].(string)
 
-	if !emailOk || !idOk || !nameOk || !imageOk || userEmail == "" || userIDStr == "" || userName == "" || userImage == "" {
+	if !emailOk || !idOk || !nameOk || !imageOk || !roleOk || userEmail == "" || userIDStr == "" || userName == "" || userImage == "" || userRole == "" {
 		g.Logger.Println("Invalid or missing user data in session")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
@@ -180,7 +185,7 @@ func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 		"email": userEmail,
 		"name":  userName,
 		"image": userImage,
-		"role":  "USER",
+		"role":  userRole,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": userInfo})

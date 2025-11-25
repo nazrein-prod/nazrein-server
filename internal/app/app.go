@@ -49,26 +49,6 @@ func NewApplication() (*Application, error) {
 	logger := log.New(os.Stdout, "LOGGING: ", log.Ldate|log.Ltime)
 	adminLogger := log.New(os.Stdout, "ADMIN LOGGING: ", log.Ldate|log.Ltime)
 
-	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
-	sessionStore.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 7, // 7 days
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-		Domain:   ".nazrein.dev",
-	}
-
-	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
-	adminSessionStore.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 7, // 7 days
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-		Domain:   ".nazrein.dev",
-	}
-
 	pgDB, err := services.ConnectPGDB()
 	if err != nil {
 		logger.Println("Error connecting to db")
@@ -94,6 +74,43 @@ func NewApplication() (*Application, error) {
 		logger.Println("PANIC: Clickhouse migration failed, exiting...")
 		return nil, err
 	}
+
+	env := os.Getenv("ENV")
+	var userOptions = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7,
+		HttpOnly: true,
+	}
+
+	var adminOptions = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7,
+		HttpOnly: true,
+	}
+
+	if env == "production" {
+		userOptions.Secure = true
+		userOptions.SameSite = http.SameSiteNoneMode
+		userOptions.Domain = ".nazrein.dev"
+
+		adminOptions.Secure = true
+		adminOptions.SameSite = http.SameSiteNoneMode
+		adminOptions.Domain = ".nazrein.dev"
+	} else {
+		userOptions.Secure = false
+		userOptions.SameSite = http.SameSiteLaxMode
+		userOptions.Domain = ""
+
+		adminOptions.Secure = false
+		adminOptions.SameSite = http.SameSiteLaxMode
+		adminOptions.Domain = ""
+	}
+
+	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
+	sessionStore.Options = userOptions
+
+	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
+	adminSessionStore.Options = adminOptions
 
 	userStore := store.NewPostgresUserStore(pgDB)
 	dashboardStore := store.NewPostgresDashboardStore(pgDB)
