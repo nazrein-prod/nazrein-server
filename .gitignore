@@ -37,4 +37,4 @@ go.work
 .env
 stack.dev.yml
 stack.prod.yml
-
+CLAUDE.md

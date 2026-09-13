@@ -1,4 +1,4 @@
-name: nazrein server CICD
+name: CICD PROD Deployment
 
 on:
   workflow_dispatch:
