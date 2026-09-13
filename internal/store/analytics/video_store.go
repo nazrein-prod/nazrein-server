@@ -23,20 +23,42 @@ type VideoTimelineSnapshot struct {
 	Link         string    `json:"link"`
 }
 
+// MaxAnalyticsLimit caps how many snapshots one request may return. A
+// heavily-edited video tracked for years accumulates thousands of them, and this
+// endpoint is public and unauthenticated.
+const MaxAnalyticsLimit = 200
+
+// DefaultAnalyticsLimit is used when the caller does not ask for a specific page
+// size.
+const DefaultAnalyticsLimit = 50
+
 type AnalyticsVideoStore interface {
-	GetVideoAnalyticsByID(videoID string) ([]VideoTimelineSnapshot, error)
+	GetVideoAnalyticsByID(videoID string, limit, offset int) ([]VideoTimelineSnapshot, error)
 }
 
-func (c *ClickhouseVideoStore) GetVideoAnalyticsByID(videoID string) ([]VideoTimelineSnapshot, error) {
+// GetVideoAnalyticsByID returns one page of a video's snapshot timeline, newest
+// first. limit is clamped to MaxAnalyticsLimit.
+func (c *ClickhouseVideoStore) GetVideoAnalyticsByID(videoID string, limit, offset int) ([]VideoTimelineSnapshot, error) {
+
+	if limit <= 0 {
+		limit = DefaultAnalyticsLimit
+	}
+	if limit > MaxAnalyticsLimit {
+		limit = MaxAnalyticsLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	query := `
 		SELECT snapshot_time, title, link, image_url
 		FROM video_snapshots
 		WHERE video_id = ?
 		ORDER BY snapshot_time DESC
+		LIMIT ? OFFSET ?
 	`
 
-	rows, err := c.conn.Query(context.Background(), query, videoID)
+	rows, err := c.conn.Query(context.Background(), query, videoID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get video analytics: %w", err)
 	}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -82,6 +83,7 @@ type VideoStore interface {
 	GetVideoByID(videoID uuid.UUID) (*VideoWithCounts, error)
 	GetBookmarkedVideosByUserID(userID uuid.UUID) ([]BookmarkedVideo, error)
 	GetSimilarVideosByName(name string) ([]SimilarVideo, error)
+	RecordVisit(ctx context.Context, videoID uuid.UUID) error
 }
 
 func (pg *PostgresVideoStore) GetVideos(params GetVideosParams) (*VideosResponse, error) {
@@ -491,31 +493,32 @@ func (pg *PostgresVideoStore) GetVideosByUserID(userId uuid.UUID) ([]models.Vide
 	return videos, nil
 }
 
-func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts, error) {
-
-	tx, err := pg.db.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %w", err)
-	}
-
-	defer func() {
-		if rErr := tx.Rollback(); rErr != nil && rErr != sql.ErrTxDone {
-			fmt.Printf("rollback error: %v", rErr)
-		}
-	}()
-
-	query := `
+// RecordVisit increments a video's visit counter.
+//
+// This is deliberately separate from GetVideoByID: it used to run as an UPDATE
+// inside the same transaction as the read, putting a write on the hottest read
+// path in the API. Callers should invoke it outside the request's critical path.
+//
+// NOTE: there is still no per-visitor deduplication, so the counter measures page
+// loads rather than distinct visitors — and because `visits` feeds
+// popularity_score, which is the default sort on the community page, it remains
+// inflatable by reloading. Fixing that needs somewhere to remember who has
+// already been counted (Redis, or a ClickHouse events table).
+func (pg *PostgresVideoStore) RecordVisit(ctx context.Context, videoID uuid.UUID) error {
+	_, err := pg.db.ExecContext(ctx, `
 		UPDATE videos
 		SET visits = visits + 1
 		WHERE id = $1
-	`
-
-	_, err = tx.Exec(query, videoID)
+	`, videoID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update video visits: %w", err)
+		return fmt.Errorf("failed to record video visit: %w", err)
 	}
+	return nil
+}
 
-	query = `
+func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts, error) {
+
+	query := `
 	SELECT
 		v.id,
 		v.link,
@@ -541,10 +544,10 @@ func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts,
 	WHERE v.id = $1
 	`
 
-	row := tx.QueryRow(query, videoID)
+	row := pg.db.QueryRow(query, videoID)
 
 	video := VideoWithCounts{}
-	err = row.Scan(
+	err := row.Scan(
 		&video.Id,
 		&video.Link,
 		&video.Published_At,
@@ -563,11 +566,6 @@ func (pg *PostgresVideoStore) GetVideoByID(videoID uuid.UUID) (*VideoWithCounts,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan video: %w", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return &video, nil

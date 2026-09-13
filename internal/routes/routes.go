@@ -40,8 +40,12 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		r.Use(httprate.LimitAll(100, time.Minute))
 		r.Use(app.MiddlewareHandler.Cors)
 
-		// public routes
+		// Public routes. OptionalAuthenticate lets a signed-in visitor get
+		// per-user detail (their bookmarks) without making these endpoints
+		// require a session.
 		r.Route("/public", func(r chi.Router) {
+			r.Use(app.MiddlewareHandler.OptionalAuthenticate)
+
 			r.Get("/videos", app.VideoHandler.HandlerGetVideos)
 			r.Get("/videos/{id}", app.VideoHandler.HandlerGetVideoByID)
 			r.Get("/videos/autocomplete", app.VideoHandler.HandlerGetSimilarVideosByName)

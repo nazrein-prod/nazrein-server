@@ -1,8 +1,9 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/grvbrk/nazrein_server/internal/app"
@@ -14,11 +15,13 @@ const (
 )
 
 func main() {
-
 	app, err := app.NewApplication()
 	if err != nil {
-		log.Fatal("Failed to start application:", err)
+		slog.Error("Failed to start application", "err", err)
+		os.Exit(1)
 	}
+
+	slog.SetDefault(app.Logger)
 
 	r := routes.SetupRoutes(app)
 
@@ -32,11 +35,11 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
-	app.Logger.Println("Server started on port", PORT)
+	app.Logger.Info("Server started", "port", PORT)
 
 	err = server.ListenAndServe()
-	if err != nil {
-		app.Logger.Fatal("Error starting server", err)
+	if err != nil && err != http.ErrServerClosed {
+		app.Logger.Error("Error starting server", "err", err)
+		os.Exit(1)
 	}
-
 }

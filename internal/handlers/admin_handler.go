@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -60,11 +60,11 @@ type AdminHandler struct {
 	AdminVideoStore        admin.AdminVideoStore
 	AdminUserStore         admin.AdminUserStore
 	AdminVideoRequestStore admin.AdminVideoRequestStore
-	Logger                 *log.Logger
+	Logger                 *slog.Logger
 	Oauth                  *auth.AdminGoogleOauth
 }
 
-func NewAdminHandler(adminVideoStore admin.AdminVideoStore, adminUserStore admin.AdminUserStore, adminVideoRequestStore admin.AdminVideoRequestStore, logger *log.Logger, oauth *auth.AdminGoogleOauth) *AdminHandler {
+func NewAdminHandler(adminVideoStore admin.AdminVideoStore, adminUserStore admin.AdminUserStore, adminVideoRequestStore admin.AdminVideoRequestStore, logger *slog.Logger, oauth *auth.AdminGoogleOauth) *AdminHandler {
 	return &AdminHandler{
 		AdminVideoStore:        adminVideoStore,
 		AdminUserStore:         adminUserStore,
@@ -77,7 +77,7 @@ func NewAdminHandler(adminVideoStore admin.AdminVideoStore, adminUserStore admin
 func (ah *AdminHandler) HandlerGetVideoRequests(w http.ResponseWriter, r *http.Request) {
 	responseArr, err := ah.AdminVideoStore.GetAllVideoRequest()
 	if err != nil {
-		ah.Logger.Println("Error fetching all video requests", err)
+		ah.Logger.Error("Error fetching all video requests", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
@@ -98,34 +98,34 @@ func (ah *AdminHandler) HandlerApproveVideoRequest(w http.ResponseWriter, r *htt
 	var req Request
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		ah.Logger.Println("Error decoding request body:", err)
+		ah.Logger.Warn("Error decoding request body", "err", err)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		ah.Logger.Println("Error parsing user id", err)
+		ah.Logger.Warn("Error parsing user id", "user_id", req.UserID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	user, err := ah.AdminUserStore.GetUserByID(userID)
 	if err != nil {
-		ah.Logger.Println("Error fetching user", err)
+		ah.Logger.Error("Error fetching user", "user_id", userID, "err", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	if user.Role == "USER" && user.Videos_Tracked >= 3 {
-		ah.Logger.Println("User has reached track limit")
+		ah.Logger.Warn("User has reached track limit", "user_id", userID)
 		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"message": "User has reached track limit"})
 		return
 	}
 
 	apiKey := os.Getenv("YOUTUBE_API_KEY")
 	if apiKey == "" {
-		ah.Logger.Println("Error: YOUTUBE_API_KEY environment variable is not set")
+		ah.Logger.Error("YOUTUBE_API_KEY environment variable is not set")
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
@@ -137,7 +137,7 @@ func (ah *AdminHandler) HandlerApproveVideoRequest(w http.ResponseWriter, r *htt
 
 	resp, err := http.Get(url)
 	if err != nil {
-		ah.Logger.Println("Error fetching video from youtube v3 api", err)
+		ah.Logger.Error("Error fetching video from youtube v3 api", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
@@ -145,27 +145,27 @@ func (ah *AdminHandler) HandlerApproveVideoRequest(w http.ResponseWriter, r *htt
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		ah.Logger.Printf("Non-OK response: %d %s\n", resp.StatusCode, resp.Status)
+		ah.Logger.Warn("Non-OK response from youtube v3 api", "status", resp.Status, "code", resp.StatusCode)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		ah.Logger.Printf("Failed to read response: %v\n", err)
+		ah.Logger.Error("Failed to read response from youtube", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	var ytResp YouTubeResponse
 	if err := json.Unmarshal(body, &ytResp); err != nil {
-		ah.Logger.Printf("Failed to decode JSON: %v\n", err)
+		ah.Logger.Error("Failed to decode JSON from youtube", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	if len(ytResp.Items) == 0 {
-		ah.Logger.Println("No video found.")
+		ah.Logger.Warn("No video found from youtube", "youtube_id", req.YoutubeID)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
@@ -187,21 +187,21 @@ func (ah *AdminHandler) HandlerApproveVideoRequest(w http.ResponseWriter, r *htt
 
 	user_uuid, err := uuid.Parse(req.UserID)
 	if err != nil {
-		ah.Logger.Println("Error parsing user id", err)
+		ah.Logger.Warn("Error parsing user id", "user_id", req.UserID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	requestID, err := uuid.Parse(req.RequestID)
 	if err != nil {
-		ah.Logger.Println("Error parsing request id", err)
+		ah.Logger.Warn("Error parsing request id", "request_id", req.RequestID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	err = ah.AdminVideoStore.CreateVideo(&video, user_uuid, requestID)
 	if err != nil {
-		ah.Logger.Println("Error creating video in store:", err)
+		ah.Logger.Error("Error creating video in store", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
@@ -220,14 +220,14 @@ func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http
 
 	rid := chi.URLParam(r, "request_id")
 	if rid == "" {
-		ah.Logger.Println("Error: request_id parameter is missing")
+		ah.Logger.Warn("request_id parameter is missing")
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	requestID, err := uuid.Parse(rid)
 	if err != nil {
-		ah.Logger.Println("Error parsing request id", err)
+		ah.Logger.Warn("Error parsing request id", "id", rid, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
@@ -235,27 +235,27 @@ func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http
 	var req PatchRequest
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		ah.Logger.Println("Error decoding request body:", err)
+		ah.Logger.Warn("Error decoding request body", "err", err)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
 		return
 	}
 
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		ah.Logger.Println("Error parsing user id", err)
+		ah.Logger.Warn("Error parsing user id", "user_id", req.UserID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
 	user, err := ah.AdminUserStore.GetUserByID(userID)
 	if err != nil {
-		ah.Logger.Println("Error fetching user", err)
+		ah.Logger.Error("Error fetching user", "user_id", userID, "err", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
 		return
 	}
 
 	if user.ID != userID {
-		ah.Logger.Println("User does not match")
+		ah.Logger.Warn("User does not match request owner", "user_id", user.ID, "owner_id", userID)
 		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"message": "Forbidden"})
 		return
 	}
@@ -267,7 +267,7 @@ func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http
 		&req.RejectionReason,
 	)
 	if err != nil {
-		ah.Logger.Println("Error updating video request:", err)
+		ah.Logger.Error("Error updating video request", "request_id", requestID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}

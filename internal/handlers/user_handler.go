@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/grvbrk/nazrein_server/internal/store"
@@ -9,10 +9,10 @@ import (
 
 type UserHandler struct {
 	UserStore store.UserStore
-	Logger    *log.Logger
+	Logger    *slog.Logger
 }
 
-func NewUserHandler(userStore store.UserStore, logger *log.Logger) *UserHandler {
+func NewUserHandler(userStore store.UserStore, logger *slog.Logger) *UserHandler {
 	return &UserHandler{
 		UserStore: userStore,
 		Logger:    logger,

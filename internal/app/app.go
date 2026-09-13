@@ -2,33 +2,29 @@ package app
 
 import (
 	"database/sql"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/grvbrk/nazrein_server/internal/auth"
 	"github.com/grvbrk/nazrein_server/internal/handlers"
 	handler_analytics "github.com/grvbrk/nazrein_server/internal/handlers/analytics"
+	applogger "github.com/grvbrk/nazrein_server/internal/logger"
 	"github.com/grvbrk/nazrein_server/internal/middlewares"
 	"github.com/grvbrk/nazrein_server/internal/services"
 	"github.com/grvbrk/nazrein_server/internal/store"
 	"github.com/grvbrk/nazrein_server/internal/store/admin"
 	"github.com/grvbrk/nazrein_server/internal/store/analytics"
-	// "github.com/grvbrk/nazrein_server/migrations"
+	"github.com/grvbrk/nazrein_server/internal/utils"
+	"github.com/grvbrk/nazrein_server/migrations"
 )
 
-var (
-	authKey            = securecookie.GenerateRandomKey(64)
-	encryptionKey      = securecookie.GenerateRandomKey(32)
-	adminAuthKey       = securecookie.GenerateRandomKey(64)
-	adminEncryptionKey = securecookie.GenerateRandomKey(32)
-)
 
 type Application struct {
-	Logger *log.Logger
+	Logger *slog.Logger
 	// RedisClient           *redis.Client
 	Oauth                 *auth.GoogleOauth
 	AdminOauth            *auth.AdminGoogleOauth
@@ -46,36 +42,37 @@ type Application struct {
 }
 
 func NewApplication() (*Application, error) {
-	logger := log.New(os.Stdout, "LOGGING: ", log.Ldate|log.Ltime)
-	adminLogger := log.New(os.Stdout, "ADMIN LOGGING: ", log.Ldate|log.Ltime)
+	logger := applogger.New("server")
+	adminLogger := applogger.New("admin")
 
 	pgDB, err := services.ConnectPGDB()
 	if err != nil {
-		logger.Println("Error connecting to db")
+		logger.Error("Error connecting to db", "err", err)
 		return nil, err
 	}
 
 	dbConn, err := services.ConnectClickhouse()
 	if err != nil {
-		logger.Println("Error connecting to clickhouse")
+		logger.Error("Error connecting to clickhouse", "err", err)
 		return nil, err
 	}
 
-	// err = store.MigrateFS(pgDB, migrations.FS, "db")
-	// if err != nil {
-	// 	logger.Println("PANIC: Postgresql migration failed, exiting...")
-	// 	panic(err)
-	// }
+	err = services.MigrateFS(pgDB, migrations.FS, "db")
+	if err != nil {
+		logger.Error("Postgres migration failed, exiting...", "err", err)
+		return nil, fmt.Errorf("postgres migration: %w", err)
+	}
 
-	// logger.Println("Database migrated...")
+	logger.Info("Database migrated...")
 
 	err = services.MigrateClickhouse()
 	if err != nil {
-		logger.Println("PANIC: Clickhouse migration failed, exiting...")
+		logger.Error("Clickhouse migration failed, exiting...", "err", err)
 		return nil, err
 	}
 
 	env := os.Getenv("ENV")
+	production := env == "production"
 	var userOptions = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 7,
@@ -88,7 +85,7 @@ func NewApplication() (*Application, error) {
 		HttpOnly: true,
 	}
 
-	if env == "production" {
+	if production {
 		userOptions.Secure = true
 		userOptions.SameSite = http.SameSiteNoneMode
 		userOptions.Domain = ".nazrein.dev"
@@ -106,10 +103,20 @@ func NewApplication() (*Application, error) {
 		adminOptions.Domain = ""
 	}
 
-	sessionStore := sessions.NewCookieStore(authKey, encryptionKey)
+	userAuthKey, userEncKey, err := utils.SessionKeys(logger, "SESSION_AUTH_KEY", "SESSION_ENCRYPTION_KEY", production)
+	if err != nil {
+		return nil, err
+	}
+
+	adminAuthKey, adminEncKey, err := utils.SessionKeys(adminLogger, "ADMIN_SESSION_AUTH_KEY", "ADMIN_SESSION_ENCRYPTION_KEY", production)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionStore := sessions.NewCookieStore(userAuthKey, userEncKey)
 	sessionStore.Options = userOptions
 
-	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncryptionKey)
+	adminSessionStore := sessions.NewCookieStore(adminAuthKey, adminEncKey)
 	adminSessionStore.Options = adminOptions
 
 	userStore := store.NewPostgresUserStore(pgDB)

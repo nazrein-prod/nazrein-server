@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -26,13 +26,13 @@ type Oauth interface {
 }
 
 type GoogleOauth struct {
-	Logger    *log.Logger
+	Logger    *slog.Logger
 	Config    *oauth2.Config
 	Store     *sessions.CookieStore
 	UserStore *store.PostgresUserStore
 }
 
-func NewGoogleOauth(logger *log.Logger, store *sessions.CookieStore, userStore *store.PostgresUserStore) (*GoogleOauth, error) {
+func NewGoogleOauth(logger *slog.Logger, store *sessions.CookieStore, userStore *store.PostgresUserStore) (*GoogleOauth, error) {
 
 	return &GoogleOauth{
 		Logger: logger,
@@ -49,7 +49,12 @@ func NewGoogleOauth(logger *log.Logger, store *sessions.CookieStore, userStore *
 }
 
 func (g *GoogleOauth) Login(w http.ResponseWriter, r *http.Request) {
-	url := g.Config.AuthCodeURL("random-state-string", oauth2.AccessTypeOffline)
+	url, err := BeginOAuth(w, g.Config, UserStateCookie)
+	if err != nil {
+		g.Logger.Error("Error starting user oauth flow", "err", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
+		return
+	}
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -64,7 +69,7 @@ func (g *GoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
 
 	err := session.Save(r, w)
 	if err != nil {
-		g.Logger.Println("Error clearing session", err)
+		g.Logger.Warn("Error clearing session", "err", err)
 	}
 
 	redirectURL := os.Getenv("FRONTEND_URL")
@@ -72,10 +77,17 @@ func (g *GoogleOauth) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	token, err := g.Config.Exchange(context.Background(), code)
+	verifier, err := CompleteOAuth(w, r, UserStateCookie)
 	if err != nil {
-		g.Logger.Println("Error exchanging user token", err)
+		g.Logger.Warn("Rejecting user oauth callback", "err", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"Error": "Invalid login attempt"})
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	token, err := g.Config.Exchange(context.Background(), code, oauth2.VerifierOption(verifier))
+	if err != nil {
+		g.Logger.Error("Error exchanging user token", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
@@ -83,7 +95,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	client := g.Config.Client(context.Background(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
-		g.Logger.Println("Error getting user info", err)
+		g.Logger.Error("Error getting user info", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
@@ -98,7 +110,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&userInfo)
 	if err != nil {
-		g.Logger.Println("Error decoding user info", err)
+		g.Logger.Error("Error decoding user info", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Interal Server Error"})
 	}
 
@@ -117,7 +129,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 
 		err = g.UserStore.CreateUser(&newUser)
 		if err != nil {
-			g.Logger.Println("Error creating user", err)
+			g.Logger.Error("Error creating user", "err", err)
 			utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 			return
 		}
@@ -130,7 +142,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil && err != sql.ErrNoRows {
-		g.Logger.Println("Error getting user by google id", err)
+		g.Logger.Error("Error getting user by google id", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
@@ -144,7 +156,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 
 	err = session.Save(r, w)
 	if err != nil {
-		g.Logger.Println("Error saving session", err)
+		g.Logger.Error("Error saving session", "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"Error": "Internal Server Error"})
 		return
 	}
@@ -156,7 +168,7 @@ func (g *GoogleOauth) Callback(w http.ResponseWriter, r *http.Request) {
 func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 	user, err := g.Store.Get(r, "nazrein_session")
 	if err != nil {
-		g.Logger.Println("Error getting session", err)
+		g.Logger.Warn("Error getting session", "err", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
 	}
@@ -168,14 +180,14 @@ func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 	userRole, roleOk := user.Values["user_role"].(string)
 
 	if !emailOk || !idOk || !nameOk || !imageOk || !roleOk || userEmail == "" || userIDStr == "" || userName == "" || userImage == "" || userRole == "" {
-		g.Logger.Println("Invalid or missing user data in session")
+		g.Logger.Warn("Invalid or missing user data in session")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
 	}
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		g.Logger.Println("Invalid user ID format in session:", err)
+		g.Logger.Warn("Invalid user ID format in session", "err", err)
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authenticated"})
 		return
 	}
@@ -189,5 +201,4 @@ func (g *GoogleOauth) AuthUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": userInfo})
-
 }
