@@ -1,0 +1,996 @@
+openapi: 3.0.3
+info:
+  title: Nazrein API
+  version: 1.0.0
+  description: REST API for Nazrein video title and thumbnail changelog tracker.
+servers:
+  - url: http://localhost:8080
+    description: Local Development
+  - url: https://api.nazrein.dev
+    description: Production
+
+paths:
+  # Browser-redirect endpoints. These are not called by the SPA clients via
+  # fetch; the user is navigated to them and redirected onward. They are
+  # documented so the spec describes the complete HTTP surface and so request
+  # validation covers every registered route.
+  /auth/google/login:
+    get:
+      summary: Begin Google OAuth for a user
+      operationId: userOAuthLogin
+      responses:
+        "307":
+          description: Redirect to Google's consent screen
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/google/logout:
+    get:
+      summary: Clear the user session
+      operationId: userOAuthLogout
+      security:
+        - cookieAuth: []
+      responses:
+        "303":
+          description: Redirect to the frontend
+
+  /auth/google/callback:
+    get:
+      summary: Google OAuth callback for a user
+      operationId: userOAuthCallback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Redirect to the frontend dashboard on success
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/admin/google/login:
+    get:
+      summary: Begin Google OAuth for an admin
+      operationId: adminOAuthLogin
+      responses:
+        "307":
+          description: Redirect to Google's consent screen
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/admin/google/logout:
+    get:
+      summary: Clear the admin session
+      operationId: adminOAuthLogout
+      security:
+        - adminCookieAuth: []
+      responses:
+        "303":
+          description: Redirect to the admin frontend
+
+  /auth/admin/google/callback:
+    get:
+      summary: Google OAuth callback for an admin
+      operationId: adminOAuthCallback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Redirect to the admin dashboard on success
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /auth/user:
+    get:
+      summary: Get authenticated user info
+      operationId: authUser
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: User session details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/admin:
+    get:
+      summary: Get authenticated admin info
+      operationId: authAdmin
+      security:
+        - adminCookieAuth: []
+      responses:
+        "200":
+          description: Admin session details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminInfoResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/public/videos:
+    get:
+      summary: List public videos
+      operationId: getPublicVideos
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [popular, recent]
+            default: popular
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [video, channel]
+            default: video
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated list of videos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicVideosResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/public/videos/{id}:
+    get:
+      summary: Get video by ID
+      operationId: getPublicVideoByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Video details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SingleVideoResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/public/videos/autocomplete:
+    get:
+      summary: Autocomplete search for similar videos
+      operationId: getSimilarVideos
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Similar videos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimilarVideosResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/public/videos/analytics/{id}:
+    get:
+      summary: Get snapshot timeline for a video
+      operationId: getVideoAnalyticsByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: Timeline of snapshots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoAnalyticsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/dashboard/metrics:
+    get:
+      summary: Get user dashboard metrics
+      operationId: getDashboardMetrics
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Dashboard counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMetricsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/videos:
+    get:
+      summary: Get videos submitted by the current user
+      operationId: getUserVideos
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: List of user videos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserVideosResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/videos/bookmarks:
+    get:
+      summary: Get bookmarked videos for the current user
+      operationId: getUserBookmarks
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: List of bookmarked videos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkedVideosResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/request:
+    get:
+      summary: Get video requests made by the current user
+      operationId: getUserVideoRequests
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: User requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoRequestsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Submit a video tracking request
+      operationId: createVideoRequest
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVideoRequestInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "201":
+          $ref: "#/components/responses/MessageOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/request/{id}:
+    delete:
+      summary: Delete a video request by ID
+      operationId: deleteVideoRequest
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/bookmark/{id}:
+    post:
+      summary: Bookmark a video
+      operationId: createBookmark
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "201":
+          $ref: "#/components/responses/MessageOK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      summary: Remove a bookmark
+      operationId: deleteBookmark
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/request:
+    get:
+      summary: List pending video requests (admin only)
+      operationId: getAdminVideoRequests
+      security:
+        - adminCookieAuth: []
+      responses:
+        "200":
+          description: Pending video requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminVideoRequestsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Approve video request and fetch details from YouTube API
+      operationId: approveVideoRequest
+      security:
+        - adminCookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveVideoRequestInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "201":
+          $ref: "#/components/responses/MessageOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/request/{request_id}:
+    patch:
+      summary: Reject or update a video request
+      operationId: updateVideoRequest
+      security:
+        - adminCookieAuth: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchVideoRequestInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/MessageOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: nazrein_session
+      description: User session cookie, set by the Google OAuth callback
+    adminCookieAuth:
+      type: apiKey
+      in: cookie
+      name: nazrein_admin_session
+      description: Admin session cookie, set by the admin Google OAuth callback
+
+  responses:
+    MessageOK:
+      description: Action completed successfully
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+    BadRequest:
+      description: Invalid query, path, or body parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Action forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        image:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - email
+        - name
+        - image
+        - role
+
+    UserInfoResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UserInfo"
+      required:
+        - data
+
+    AdminInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        image:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - email
+        - name
+        - image
+        - role
+
+    AdminInfoResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AdminInfo"
+      required:
+        - data
+
+    # Base video record. Mirrors models.Video in the Go server; every schema
+    # below composes from it rather than redeclaring the fields.
+    Video:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        link:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+        title:
+          type: string
+        description:
+          type: string
+        thumbnail:
+          type: string
+        youtube_id:
+          type: string
+        channel_title:
+          type: string
+        channel_id:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        is_active:
+          type: boolean
+        visits:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - link
+        - published_at
+        - title
+        - description
+        - thumbnail
+        - youtube_id
+        - channel_title
+        - channel_id
+        - user_id
+        - is_active
+        - visits
+        - created_at
+        - updated_at
+
+    # store.VideoWithCounts — a video plus its aggregate bookmark count.
+    VideoWithCounts:
+      allOf:
+        - $ref: "#/components/schemas/Video"
+        - type: object
+          properties:
+            bookmark_count:
+              type: integer
+          required:
+            - bookmark_count
+
+    # An entry in the public video list. is_bookmarked is present only when the
+    # request carries a session (store.BookmarkedVideoWithCounts); anonymous
+    # requests get store.VideoWithCounts, which omits it.
+    VideoListItem:
+      allOf:
+        - $ref: "#/components/schemas/VideoWithCounts"
+        - type: object
+          properties:
+            is_bookmarked:
+              type: boolean
+
+    # store.BookmarkedVideo — a video plus when the current user bookmarked it.
+    BookmarkedVideo:
+      allOf:
+        - $ref: "#/components/schemas/Video"
+        - type: object
+          properties:
+            bookmarked_at:
+              type: string
+              format: date-time
+          required:
+            - bookmarked_at
+
+    PublicVideosData:
+      type: object
+      properties:
+        videos:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoListItem"
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        has_more:
+          type: boolean
+      required:
+        - videos
+        - page
+        - limit
+        - total
+        - has_more
+
+    PublicVideosResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicVideosData"
+      required:
+        - data
+
+    SingleVideoResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/VideoWithCounts"
+      required:
+        - data
+
+    UserVideosResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Video"
+      required:
+        - data
+
+    BookmarkedVideosResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookmarkedVideo"
+      required:
+        - data
+
+    SimilarVideo:
+      type: object
+      properties:
+        title:
+          type: string
+        channel_name:
+          type: string
+      required:
+        - title
+        - channel_name
+
+    SimilarVideosResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SimilarVideo"
+      required:
+        - data
+
+    VideoTimelineSnapshot:
+      type: object
+      properties:
+        snapshot_time:
+          type: string
+          format: date-time
+        title:
+          type: string
+        image_url:
+          type: string
+        link:
+          type: string
+      required:
+        - snapshot_time
+        - title
+        - image_url
+        - link
+
+    VideoAnalyticsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoTimelineSnapshot"
+      required:
+        - data
+
+    DashboardMetrics:
+      type: object
+      properties:
+        bookmarked:
+          type: integer
+        tracked:
+          type: integer
+        pending:
+          type: integer
+      required:
+        - bookmarked
+        - tracked
+        - pending
+
+    DashboardMetricsResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DashboardMetrics"
+      required:
+        - data
+
+    VideoRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+        link:
+          type: string
+        youtube_id:
+          type: string
+        user_id:
+          type: string
+        processed_by:
+          type: string
+          format: uuid
+          nullable: true
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        rejection_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - status
+        - link
+        - youtube_id
+        - user_id
+        - created_at
+        - updated_at
+
+    VideoRequestsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoRequest"
+      required:
+        - data
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        google_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        image:
+          type: string
+        role:
+          type: string
+        track_limit:
+          type: integer
+        videos_tracked:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - google_id
+        - name
+        - email
+        - image
+        - role
+        - track_limit
+        - videos_tracked
+        - created_at
+        - updated_at
+
+    AdminVideoRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+        link:
+          type: string
+        youtube_id:
+          type: string
+        user:
+          $ref: "#/components/schemas/AdminUser"
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - status
+        - link
+        - youtube_id
+        - user
+        - created_at
+
+    AdminVideoRequestsResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminVideoRequest"
+      required:
+        - data
+
+    CreateVideoRequestInput:
+      type: object
+      properties:
+        link:
+          type: string
+      required:
+        - link
+
+    ApproveVideoRequestInput:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        link:
+          type: string
+        youtube_id:
+          type: string
+      required:
+        - user_id
+        - request_id
+        - link
+        - youtube_id
+
+    PatchVideoRequestInput:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REJECTED]
+        processed_by:
+          type: string
+          format: uuid
+          nullable: true
+        rejection_reason:
+          type: string
+          nullable: true
+      required:
+        - user_id
+        - status

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
 	"github.com/grvbrk/nazrein_server/internal/middlewares"
@@ -70,25 +69,11 @@ func (vrh *VideoRequestHandler) HandlerCreateVideoRequest(w http.ResponseWriter,
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "Success"})
 }
 
-func (vrh *VideoRequestHandler) HandlerDeleteVideoRequestByID(w http.ResponseWriter, r *http.Request) {
-	videoRequestID := chi.URLParam(r, "id")
-	if videoRequestID == "" {
-		vrh.Logger.Warn("No video request id found in url")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
+func (vrh *VideoRequestHandler) HandlerDeleteVideoRequestByID(w http.ResponseWriter, r *http.Request, requestID uuid.UUID) {
 	user, ok := middlewares.GetUserFromContext(r)
 	if !ok {
 		vrh.Logger.Warn("No user found in context")
 		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"message": "Not Authorized"})
-		return
-	}
-
-	requestID, err := uuid.Parse(videoRequestID)
-	if err != nil {
-		vrh.Logger.Warn("Parsing error from string to uuid", "id", videoRequestID, "err", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
 		return
 	}
 
@@ -132,5 +117,5 @@ func (vrh *VideoRequestHandler) HandlerGetAllVideoRequestsByUserID(w http.Respon
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": videoRequestArr})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": videoRequestArr})
 }

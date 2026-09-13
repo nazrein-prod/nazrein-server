@@ -4,10 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
 	"github.com/grvbrk/nazrein_server/internal/middlewares"
@@ -29,79 +27,10 @@ func NewVideoHandler(videoStore store.VideoStore, logger *slog.Logger, oauth *au
 	}
 }
 
-func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request) {
-	pageStr := r.URL.Query().Get("page")
-	if pageStr == "" {
-		vh.Logger.Warn("page parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		vh.Logger.Warn("limit parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	sortByStr := r.URL.Query().Get("sortBy")
-	if sortByStr == "" {
-		vh.Logger.Warn("sortBy parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	query := r.URL.Query().Get("q")
-
-	searchTypeStr := r.URL.Query().Get("type")
-	if searchTypeStr == "" {
-		vh.Logger.Warn("searchType parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	page, err := strconv.Atoi(pageStr)
-	if err != nil {
-		vh.Logger.Warn("invalid page parameter", "page", pageStr, "err", err)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-	if page < 1 {
-		vh.Logger.Warn("page parameter must be >= 1", "page", page)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		vh.Logger.Warn("invalid limit parameter", "limit", limitStr, "err", err)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-	if limit < 1 || limit > 100 {
-		vh.Logger.Warn("limit parameter must be between 1 and 100", "limit", limit)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	sortBy := store.ValidateSortBy(sortByStr)
-	if string(sortBy) != sortByStr {
-		vh.Logger.Warn("invalid sort_by parameter, defaulting to popular", "sortBy", sortByStr)
-	}
-
-	searchType := store.ValidateSearchType(searchTypeStr)
-	if string(searchType) != searchTypeStr {
-		vh.Logger.Warn("invalid type parameter, defaulting to video", "type", searchTypeStr)
-	}
-
-	params := store.GetVideosParams{
-		Page:   page,
-		Limit:  limit,
-		SortBy: sortBy,
-		Query:  query,
-		Type:   searchType,
-	}
-
+// HandlerGetVideos lists public videos. Query parameters are bound and
+// validated from the OpenAPI spec before this is called; params arrives already
+// parsed and defaulted.
+func (vh *VideoHandler) HandlerGetVideos(w http.ResponseWriter, r *http.Request, params store.GetVideosParams) {
 	user, ok := middlewares.GetUserFromContext(r)
 	if !ok {
 		// No authenticated user - return videos without bookmark information
@@ -147,21 +76,7 @@ func (vh *VideoHandler) HandlerGetVideosByUserID(w http.ResponseWriter, r *http.
 
 }
 
-func (vh *VideoHandler) HandlerGetVideoByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		vh.Logger.Warn("id parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	videoID, err := uuid.Parse(id)
-	if err != nil {
-		vh.Logger.Warn("Error parsing video id", "id", id, "err", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
-		return
-	}
-
+func (vh *VideoHandler) HandlerGetVideoByID(w http.ResponseWriter, r *http.Request, videoID uuid.UUID) {
 	video, err := vh.VideoStore.GetVideoByID(videoID)
 	if err != nil {
 		vh.Logger.Error("Error getting video from store", "video_id", videoID, "err", err)
@@ -200,14 +115,7 @@ func (vh *VideoHandler) HandlerGetBookmarkedVideosByUserID(w http.ResponseWriter
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": bookmarkedVideos})
 }
 
-func (vh *VideoHandler) HandlerGetSimilarVideosByName(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
-	if query == "" || len(query) < 2 {
-		vh.Logger.Warn("query is either missing or too short", "query", query)
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
+func (vh *VideoHandler) HandlerGetSimilarVideosByName(w http.ResponseWriter, r *http.Request, query string) {
 	videos, err := vh.VideoStore.GetSimilarVideosByName(query)
 	if err != nil {
 		vh.Logger.Error("Error getting similar videos from store", "query", query, "err", err)

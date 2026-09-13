@@ -22,7 +22,6 @@ import (
 	"github.com/grvbrk/nazrein_server/migrations"
 )
 
-
 type Application struct {
 	Logger *slog.Logger
 	// RedisClient           *redis.Client

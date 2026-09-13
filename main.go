@@ -23,7 +23,11 @@ func main() {
 
 	slog.SetDefault(app.Logger)
 
-	r := routes.SetupRoutes(app)
+	r, err := routes.SetupRoutes(app)
+	if err != nil {
+		slog.Error("Failed to set up routes", "err", err)
+		os.Exit(1)
+	}
 
 	// defer app.RedisClient.Close()
 

@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
 	"github.com/grvbrk/nazrein_server/internal/models"
@@ -82,7 +81,7 @@ func (ah *AdminHandler) HandlerGetVideoRequests(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": responseArr})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": responseArr})
 
 }
 
@@ -210,7 +209,7 @@ func (ah *AdminHandler) HandlerApproveVideoRequest(w http.ResponseWriter, r *htt
 
 }
 
-func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http.Request) {
+func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http.Request, requestID uuid.UUID) {
 	type PatchRequest struct {
 		UserID          string `json:"user_id"`
 		Status          string `json:"status"`
@@ -218,22 +217,8 @@ func (ah *AdminHandler) HandlerUpdateVideoRequest(w http.ResponseWriter, r *http
 		RejectionReason string `json:"rejection_reason"`
 	}
 
-	rid := chi.URLParam(r, "request_id")
-	if rid == "" {
-		ah.Logger.Warn("request_id parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	requestID, err := uuid.Parse(rid)
-	if err != nil {
-		ah.Logger.Warn("Error parsing request id", "id", rid, "err", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
-		return
-	}
-
 	var req PatchRequest
-	err = json.NewDecoder(r.Body).Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		ah.Logger.Warn("Error decoding request body", "err", err)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})

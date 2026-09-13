@@ -3,9 +3,7 @@ package analytics
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/grvbrk/nazrein_server/internal/store/analytics"
 	"github.com/grvbrk/nazrein_server/internal/utils"
 )
@@ -22,18 +20,10 @@ func NewAnalyticsVideoHandler(analyticsVideoStore analytics.AnalyticsVideoStore,
 	}
 }
 
-func (ah *AnalyticsVideoHandler) HandlerGetVideoAnalyticsByID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		ah.Logger.Warn("id parameter is missing")
-		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"message": "Bad Request"})
-		return
-	}
-
-	// Both optional; the store clamps limit and floors offset.
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-
+// HandlerGetVideoAnalyticsByID returns one page of a video's snapshot timeline.
+// id, limit and offset are bound from the OpenAPI spec; the store clamps limit
+// and floors offset.
+func (ah *AnalyticsVideoHandler) HandlerGetVideoAnalyticsByID(w http.ResponseWriter, r *http.Request, id string, limit, offset int) {
 	response, err := ah.AnalyticsVideoStore.GetVideoAnalyticsByID(id, limit, offset)
 	if err != nil {
 		ah.Logger.Error("Error getting video analytics from store", "id", id, "err", err)

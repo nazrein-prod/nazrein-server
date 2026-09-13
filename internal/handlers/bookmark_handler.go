@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/grvbrk/nazrein_server/internal/auth"
 	"github.com/grvbrk/nazrein_server/internal/middlewares"
@@ -30,7 +29,7 @@ func NewBookmarkHandler(videoStore store.VideoStore, bookmarkStore store.Bookmar
 	}
 }
 
-func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.Request) {
+func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.Request, videoID uuid.UUID) {
 
 	user, ok := middlewares.GetUserFromContext(r)
 	if !ok {
@@ -39,14 +38,7 @@ func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.
 		return
 	}
 
-	videoID, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		bh.Logger.Warn("Error parsing video id", "id", chi.URLParam(r, "id"), "err", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
-		return
-	}
-
-	err = bh.BookmarkStore.CreateBookmark(videoID, user.ID)
+	err := bh.BookmarkStore.CreateBookmark(videoID, user.ID)
 	if err != nil {
 		bh.Logger.Error("Error creating bookmark", "video_id", videoID, "user_id", user.ID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
@@ -56,7 +48,7 @@ func (bh *BookmarkHandler) HandlerCreateBookmark(w http.ResponseWriter, r *http.
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "Success"})
 }
 
-func (bh *BookmarkHandler) HandlerDeleteBookmark(w http.ResponseWriter, r *http.Request) {
+func (bh *BookmarkHandler) HandlerDeleteBookmark(w http.ResponseWriter, r *http.Request, videoID uuid.UUID) {
 
 	user, ok := middlewares.GetUserFromContext(r)
 	if !ok {
@@ -65,14 +57,7 @@ func (bh *BookmarkHandler) HandlerDeleteBookmark(w http.ResponseWriter, r *http.
 		return
 	}
 
-	videoID, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		bh.Logger.Warn("Error parsing video id", "id", chi.URLParam(r, "id"), "err", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})
-		return
-	}
-
-	err = bh.BookmarkStore.DeleteBookmark(videoID, user.ID)
+	err := bh.BookmarkStore.DeleteBookmark(videoID, user.ID)
 	if err != nil {
 		bh.Logger.Error("Error deleting bookmark", "video_id", videoID, "user_id", user.ID, "err", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"message": "Internal Server Error"})

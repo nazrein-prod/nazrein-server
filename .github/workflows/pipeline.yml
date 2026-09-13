@@ -36,6 +36,23 @@ jobs:
           go mod download
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4
 
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify OpenAPI codegen is up to date
+        run: |
+          go generate ./...
+          if ! git diff --exit-code --stat; then
+            echo "::error::internal/api/api.gen.go is stale. Run 'go generate ./...' and commit the result."
+            exit 1
+          fi
+
       - name: Run golangci-lint
         run: golangci-lint run
 
