@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -19,13 +19,13 @@ const UserContextKey contextKey = "user"
 const AdminContextKey contextKey = "admin"
 
 type MiddlewareHandler struct {
-	Logger            *log.Logger
-	AdminLogger       *log.Logger
+	Logger            *slog.Logger
+	AdminLogger       *slog.Logger
 	SessionStore      *sessions.CookieStore
 	AdminSessionStore *sessions.CookieStore
 }
 
-func NewMiddlewareHandler(logger *log.Logger, adminLogger *log.Logger, store *sessions.CookieStore, adminStore *sessions.CookieStore) *MiddlewareHandler {
+func NewMiddlewareHandler(logger *slog.Logger, adminLogger *slog.Logger, store *sessions.CookieStore, adminStore *sessions.CookieStore) *MiddlewareHandler {
 	return &MiddlewareHandler{
 		Logger:            logger,
 		AdminLogger:       adminLogger,
@@ -39,13 +39,13 @@ func (mh *MiddlewareHandler) Authenticate(next http.Handler) http.Handler {
 
 		session, err := mh.SessionStore.Get(r, "nazrein_session")
 		if err != nil {
-			mh.Logger.Println("Error getting session in auth middleware:", err)
+			mh.Logger.Warn("Error getting session in auth middleware", "err", err)
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authorized"})
 			return
 		}
 
 		if session.IsNew {
-			mh.Logger.Println("New session found in auth middleware (not authenticated)")
+			mh.Logger.Warn("New session found in auth middleware (not authenticated)")
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authorized"})
 			return
 		}
@@ -54,21 +54,27 @@ func (mh *MiddlewareHandler) Authenticate(next http.Handler) http.Handler {
 		userIDStr, idOk := session.Values["user_id"].(string)
 
 		if !emailOk || !idOk || userEmail == "" || userIDStr == "" {
-			mh.Logger.Println("Invalid or missing user data in session")
+			mh.Logger.Warn("Invalid or missing user data in session")
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authorized"})
 			return
 		}
 
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
-			mh.Logger.Println("Invalid user ID format in session:", err)
+			mh.Logger.Warn("Invalid user ID format in session", "err", err)
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Not Authorized"})
 			return
+		}
+
+		userRole, _ := session.Values["user_role"].(string)
+		if userRole == "" {
+			userRole = "USER"
 		}
 
 		user := &models.User{
 			ID:    userID,
 			Email: userEmail,
+			Role:  userRole,
 		}
 
 		ctx := context.WithValue(r.Context(), UserContextKey, user)
@@ -76,18 +82,56 @@ func (mh *MiddlewareHandler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
+func (mh *MiddlewareHandler) OptionalAuthenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := mh.userFromSession(r)
+		if !ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), UserContextKey, user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (mh *MiddlewareHandler) userFromSession(r *http.Request) (*models.User, bool) {
+	session, err := mh.SessionStore.Get(r, "nazrein_session")
+	if err != nil || session.IsNew {
+		return nil, false
+	}
+
+	userEmail, emailOk := session.Values["user_email"].(string)
+	userIDStr, idOk := session.Values["user_id"].(string)
+	if !emailOk || !idOk || userEmail == "" || userIDStr == "" {
+		return nil, false
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return nil, false
+	}
+
+	userRole, _ := session.Values["user_role"].(string)
+	if userRole == "" {
+		userRole = "USER"
+	}
+
+	return &models.User{ID: userID, Email: userEmail, Role: userRole}, true
+}
+
 func (mh *MiddlewareHandler) AuthenticateAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		session, err := mh.AdminSessionStore.Get(r, "nazrein_admin_session")
 		if err != nil {
-			mh.AdminLogger.Println("Error getting admin session in auth middleware:", err)
+			mh.AdminLogger.Warn("Error getting admin session in auth middleware", "err", err)
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Admin access required"})
 			return
 		}
 
 		if session.IsNew {
-			mh.AdminLogger.Println("New admin session found in auth middleware (not authenticated)")
+			mh.AdminLogger.Warn("New admin session found in auth middleware (not authenticated)")
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Admin access required"})
 			return
 		}
@@ -96,14 +140,14 @@ func (mh *MiddlewareHandler) AuthenticateAdmin(next http.Handler) http.Handler {
 		adminIDStr, idOk := session.Values["admin_id"].(string)
 
 		if !emailOk || !idOk || adminEmail == "" || adminIDStr == "" {
-			mh.AdminLogger.Println("Invalid or missing admin data in session")
+			mh.AdminLogger.Warn("Invalid or missing admin data in session")
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Admin access required"})
 			return
 		}
 
 		adminID, err := uuid.Parse(adminIDStr)
 		if err != nil {
-			mh.AdminLogger.Println("Invalid admin ID format in session:", err)
+			mh.AdminLogger.Warn("Invalid admin ID format in session", "err", err)
 			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "Admin access required"})
 			return
 		}
@@ -123,7 +167,7 @@ func (mh *MiddlewareHandler) Cors(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 
 		if origin != "" && !isOriginAllowed(origin) {
-			mh.Logger.Printf("Origin not allowed: %s", origin)
+			mh.Logger.Warn("Origin not allowed", "origin", origin)
 			utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "Origin not allowed"})
 			return
 		}
@@ -151,8 +195,11 @@ func (mh *MiddlewareHandler) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 
-		mh.Logger.Printf("Request: %s %s | Origin: %s",
-			r.Method, r.URL.Path, origin)
+		mh.Logger.Info("Request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"origin", origin,
+		)
 
 		next.ServeHTTP(w, r)
 	})
@@ -165,7 +212,11 @@ func (mh *MiddlewareHandler) Security(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		// w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		// Only in production, where Traefik terminates TLS. Sending HSTS over
+		// plain HTTP in local development would pin localhost to https.
+		if os.Getenv("ENV") == "production" {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
 
 		next.ServeHTTP(w, r)
 	})
