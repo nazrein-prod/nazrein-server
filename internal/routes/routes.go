@@ -30,9 +30,12 @@ func specValidator() (func(http.Handler) http.Handler, error) {
 	// kin-openapi ignores `format` on strings unless a validator is registered
 	// for it. Without this, `format: uuid` is documentation only and a path like
 	// /videos/not-a-uuid reaches the binding layer before being rejected.
-	openapi3.DefineStringFormat("uuid", openapi3.FormatOfStringForUUIDOfRFC4122)
+	openapi3.DefineStringFormatValidator(
+		"uuid",
+		openapi3.NewRegexpFormatValidator(openapi3.FormatOfStringForUUIDOfRFC4122),
+	)
 
-	spec, err := api.GetSwagger()
+	spec, err := api.GetSpec()
 	if err != nil {
 		return nil, fmt.Errorf("loading embedded openapi spec: %w", err)
 	}
